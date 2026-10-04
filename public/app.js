@@ -403,8 +403,14 @@ async function loadPricing() {
   const { orders } = await api('/api/orders');
   $('#orderList').innerHTML = orders.map((o) => `
     <div class="list-item"><span><b>${o.id}</b> — ${esc(o.label)}<br><small class="muted">${esc(o.buyer)} • ${fmtDate(o.createdAt)}</small></span>
-    <span style="text-align:right"><b class="neon">${fmtRp(o.price)}</b><br><span class="badge warn">${o.status.toUpperCase()}</span></span></div>`).join('')
+    <span style="text-align:right"><b class="neon">${fmtRp(o.price)}</b><br><span class="badge warn">${o.status.toUpperCase()}</span>
+    <button class="mini-btn" title="Hapus order" onclick="delOrder('${o.id}')">${ic('trash')}</button></span></div>`).join('')
     || '<p class="muted">Belum ada order.</p>';
+}
+async function delOrder(id) {
+  if (!confirm('Hapus order ' + id + '?')) return;
+  await api('/api/orders/' + id, { method: 'DELETE' });
+  loadPricing();
 }
 function calcCustom() {
   const t = Math.max(0, parseInt($('#customTokens').value) || 0);
