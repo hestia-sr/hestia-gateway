@@ -39,8 +39,8 @@ h1,h2,h3{margin:0}
 .logo-dot{width:14px;height:14px;border-radius:50%;
   background:radial-gradient(circle at 35% 35%, #ffd1e8, var(--pink) 60%, var(--purple-deep));
   box-shadow:0 0 14px var(--pink)}
-.logo-img{width:24px;height:24px;border-radius:50%;object-fit:cover;object-position:top;
-  box-shadow:0 0 8px var(--pink);flex:none}
+.logo-img{width:30px;height:30px;border-radius:50%;object-fit:cover;object-position:top;
+  box-shadow:0 0 12px var(--pink);flex:none}
 .main{position:relative;z-index:1;padding:18px 16px 40px;max-width:1100px;margin:0 auto}
 .page-title{font-size:1.5rem;display:flex;align-items:center;gap:10px}
 .page-sub{color:var(--muted);margin:6px 0 18px;font-size:.92rem}
@@ -151,7 +151,7 @@ select option{background:#14101f}
 .link-card{display:block;text-decoration:none;color:var(--txt);background:var(--card);
   border:1px solid var(--card-br);border-radius:14px;padding:16px;transition:.18s}
 .link-card:hover{border-color:var(--pink);box-shadow:0 0 18px rgba(255,46,154,.3);transform:translateY(-2px)}
-.link-card b{display:block;margin-bottom:4px}
+.link-card b{display:block;margin-bottom:4px;overflow-wrap:anywhere;word-break:break-word}
 .link-card small{color:var(--muted);font-size:.78rem}
 .link-card .go{color:var(--pink-soft);font-size:.8rem;margin-top:8px;display:block}
 
