@@ -58,7 +58,7 @@
       </div>
       <div class="row gap">
         <button class="btn primary" id="btnValidate">Validasi & Lihat Model</button>
-        <button class="btn ghost" id="btnToggleKey">👁 Tampilkan Key</button>
+        <button class="btn ghost" id="btnToggleKey"><svg class="icsvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Tampilkan Key</button>
       </div>
       <div id="pvResult" class="pv-result hidden"></div>
     </div>
@@ -70,10 +70,10 @@
     <h1 class="page-title">API Key Gateway</h1>
     <p class="page-sub">Generate key <code class="mono">hestia-xxxx</code> + Base URL web ini — pakai di agent favorit / web lain.</p>
     <div class="card glow">
-      <h3>⚡ Buat API Key Baru</h3>
+      <h3><svg class="icsvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Buat API Key Baru</h3>
       <div class="row gap" style="margin-bottom:10px">
-        <button class="btn primary sm" id="tabHestia">🌟 Key Hestia</button>
-        <button class="btn ghost sm" id="tabByok">🔑 Key Sendiri (BYOK)</button>
+        <button class="btn primary sm" id="tabHestia"><svg class="icsvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg> Key Hestia</button>
+        <button class="btn ghost sm" id="tabByok"><svg class="icsvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="16" r="4.5"/><path d="M11.2 12.8L21 3m-4 1l3 3m-6 0l2.5 2.5"/></svg> Key Sendiri (BYOK)</button>
       </div>
       <p class="muted" id="keyTypeDesc" style="margin:0 0 12px"></p>
       <div class="form-grid">
@@ -92,7 +92,7 @@
     <h1 class="page-title">Info Model</h1>
     <p class="page-sub">Status aktif / nonaktif, ping, jumlah konteks, dan rata-rata token per request.</p>
     <div class="row gap wrap" style="margin-bottom:12px">
-      <button class="btn ghost sm" id="btnPingAll">📶 Ping Semua Provider</button>
+      <button class="btn ghost sm" id="btnPingAll"><svg class="icsvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20v-6M10 20V10M15 20v-8M20 20V4"/></svg> Ping Semua Provider</button>
       <span class="muted" id="modelCount"></span>
     </div>
     <div class="card table-wrap"><table class="tbl" id="modelTable">
@@ -107,7 +107,7 @@
     <p class="page-sub">Setiap request yang lewat gateway tercatat di sini.</p>
     <div class="row gap wrap" style="margin-bottom:12px">
       <select id="usageFilter" class="sel"><option value="">Semua Key</option></select>
-      <button class="btn ghost sm" id="btnExportCsv">⬇ Export CSV</button>
+      <button class="btn ghost sm" id="btnExportCsv"><svg class="icsvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> Export CSV</button>
     </div>
     <div class="card table-wrap"><table class="tbl" id="usageTable">
       <thead><tr><th>Waktu</th><th>Key</th><th>Model</th><th>In</th><th>Out</th><th>Total</th><th>Status</th></tr></thead>
@@ -121,7 +121,7 @@
     <p class="page-sub">Pilih paket, atau beli token custom tanpa batas jumlah.</p>
     <div class="cards" id="planCards" style="grid-template-columns:repeat(auto-fit,minmax(230px,1fr))"></div>
     <div class="card">
-      <h3>🧮 Kalkulator Token Custom <span class="badge">tanpa batas</span></h3>
+      <h3><svg class="icsvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h.01M12 19h.01M16 19h.01"/></svg> Kalkulator Token Custom <span class="badge">tanpa batas</span></h3>
       <div class="form-grid">
         <label>Jumlah Token<input id="customTokens" type="number" min="1000" step="1000" value="500000"></label>
         <label>Nama Pembeli<input id="buyerName" placeholder="Nama kamu"></label>
@@ -137,7 +137,7 @@
 
   <!-- ETALASE -->
   <section class="page hidden" id="page-etalase">
-    <h1 class="page-title">Etalase Model 💎</h1>
+    <h1 class="page-title">Etalase Model <svg class="icsvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12l4 6-10 12L2 9l4-6z"/><path d="M2 9h20M9 3l3 6 3-6"/></svg></h1>
     <p class="page-sub">Model-model unggulan pilihan Hestia — aktifkan lewat API key gateway, pakai di agent favoritmu.</p>
     <div id="etalaseTiers" class="stack"></div>
   </section>
