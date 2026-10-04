@@ -9,6 +9,7 @@ const NAV = [
   { id: 'models', label: 'Model', ic: '🤖' },
   { id: 'usage', label: 'Riwayat', ic: '📜' },
   { id: 'pricing', label: 'Harga', ic: '💎' },
+  { id: 'etalase', label: 'Etalase', ic: '🛍️' },
   { id: 'links', label: 'Tautan', ic: '🔗' },
 ];
 let PLANS = [], CUSTOM_RATE = 10, PROVIDERS = [];
@@ -54,7 +55,7 @@ function go(id) {
   $('#page-' + id).classList.remove('hidden');
   $$('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === id));
   window.scrollTo({ top: 0 });
-  ({ dashboard: loadDashboard, provider: loadProviders, keys: loadKeyForm, models: loadModels, usage: loadUsage, pricing: loadPricing }[id] || (() => {}))();
+  ({ dashboard: loadDashboard, provider: loadProviders, keys: loadKeyForm, models: loadModels, usage: loadUsage, pricing: loadPricing, etalase: loadEtalase }[id] || (() => {}))();
 }
 
 /* ---------- dashboard ---------- */
@@ -356,6 +357,46 @@ $('#btnBuyCustom').addEventListener('click', async () => {
     <button class="btn primary big" onclick="closeModal()">Mengerti!</button>`);
   loadPricing();
 });
+
+/* ---------- etalase ---------- */
+const ETALASE = [
+  { tier: 'Sultan', icon: '👑', desc: 'Kasta tertinggi — untuk paket VIP', items: [
+    ['claude-opus-5.5', 'LikeChat - TNT'],
+    ['claude-opus-5', 'LikeChat - TNT'],
+    ['gpt-6.1-sol', 'LikeChat - TNT'],
+    ['gpt-5.5-xhigh', 'LikeChat - TNT'],
+    ['claude-sonnet-4-6', 'LikeChat - VYCE (chat)'],
+  ]},
+  { tier: 'Harian', icon: '⚡', desc: 'Enak dipakai tiap hari — untuk paket MEMBER', items: [
+    ['DeepSeek-V4-Pro', 'LikeChat - hcnsec (chat)'],
+    ['glm-5.3', 'LikeChat - hcnsec (chat)'],
+    ['kimi-k3', 'LikeChat - hcnsec (chat)'],
+    ['openai/gpt-oss-120b', 'LikeChat - HyperFusion (file/gambar)'],
+    ['deepseek-ai/DeepSeek-V4-Flash-0731', 'LikeChat - HyperFusion (file/gambar)'],
+    ['gpt-5.5', 'LikeChat - TNT'],
+  ]},
+];
+async function loadEtalase() {
+  const { models } = await api('/api/models');
+  const byKey = {};
+  models.forEach((m) => (byKey[m.id + '|' + m.providerName] = m));
+  $('#etalaseTiers').innerHTML = ETALASE.map((t) => `
+    <div class="card"><div class="card-head"><h3>${t.icon} Kasta ${t.tier}</h3><span class="muted">${t.desc}</span></div>
+    <div class="link-grid">${t.items.map(([id, prov]) => {
+      const m = byKey[id + '|' + prov];
+      const live = !!(m && m.active);
+      return `<div class="link-card">
+        <b class="mono">${esc(id)}</b>
+        <small>${esc(prov)}${m ? ' • ' + fmtN(m.context) + ' konteks' : ''}</small>
+        <span class="row gap" style="margin-top:8px">
+          <span class="badge ${live ? 'ok' : 'off'}">${live ? 'READY' : 'OFF'}</span>
+          ${m && m.pingMs ? `<small class="muted">${m.pingMs} ms</small>` : ''}
+        </span>
+        <button class="btn primary sm" style="margin-top:10px;width:100%" data-nav="pricing">Beli Paket</button>
+      </div>`;
+    }).join('')}</div></div>`).join('');
+  $$('#etalaseTiers [data-nav]').forEach((b) => b.addEventListener('click', () => go(b.dataset.nav)));
+}
 
 /* ---------- provider links ---------- */
 const LINKS = [
