@@ -22,6 +22,7 @@ h1,h2,h3{margin:0}
 .mono{font-family:var(--mono);font-size:.85em;background:rgba(139,92,246,.18);
   padding:2px 8px;border-radius:6px;color:var(--pink-soft)}
 .muted{color:var(--muted);font-size:.85rem}
+.struck{text-decoration:line-through;opacity:.6}
 .neon{color:var(--pink);text-shadow:0 0 12px rgba(255,46,154,.7)}
 .hidden{display:none!important}
 
