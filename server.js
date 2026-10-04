@@ -92,8 +92,8 @@ const nid = (p) => p + '_' + Date.now().toString(36) + crypto.randomBytes(3).toS
 
 /* ---------------- Paket harga (Rupiah) ---------------- */
 const PLANS = [
-  { id: 'free-500k', name: 'FREE', tokens: 500000, price: 0, durationDays: 7, maxModels: 5, freeModels: 0,
-    desc: '500K token • 7 hari • 5 model (khusus xkiro)' },
+  { id: 'free-500k', name: 'FREE', tokens: 700000, price: 0, durationDays: 7, maxModels: 10, freeModels: 0,
+    desc: '700K token • 7 hari • 10 model' },
   { id: 'basic-1m', name: 'BASIC', tokens: 1000000, price: 10000, durationDays: 7, maxModels: 10, freeModels: 0,
     desc: '1M token • 7 hari • 10 model' },
   { id: 'member-3m', name: 'MEMBER', tokens: 3000000, price: 25000, durationDays: 14, maxModels: 20, freeModels: 0,
@@ -109,6 +109,23 @@ const PLANS = [
 ];
 const CUSTOM_RATE_PER_1K = 10; // Rp10 per 1000 token (ikut harga 5k/500k)
 const getPlan = (id) => PLANS.find((p) => p.id === id);
+
+/* ---------------- Model paket GRATIS (dipilih otomatis) ----------------
+   Model yang umum digratiskan reseller lain; DeepSeek-V4-Pro ikut kata Hestia.
+   Key gratis jalan di provider hcnsec (1 key = 1 provider). */
+const FREE_PROVIDER_NAME = 'LikeChat - hcnsec (chat)';
+const FREE_MODEL_IDS = [
+  'DeepSeek-V4-Pro',
+  'DeepSeek-V4-Flash',
+  'DeepSeek-V4.1-Flash',
+  'glm-5.3-flash',
+  'kimi-k3',
+  'Qwen3.8-27B',
+  'Qwen3.8-Flash-Next',
+  'MiniMax-M3.1-Flash',
+  'MiMo-V2.6-Flash',
+  'longcat-2.5',
+];
 
 /* ---------------- Pool model Sultan ---------------- */
 const SULTAN_MAHAL = [
@@ -553,6 +570,32 @@ app.post('/api/keys', requireAdmin, (req, res) => {
     key: gk.key, // tampil penuh HANYA saat pembuatan
     baseUrl: publicBaseUrl(req) + '/v1',
     expiresAt: gk.expiresAt, tokenLimit: gk.tokenLimit, modelCount: chosen.length,
+  });
+});
+
+/* Pengguna generate 1 key GRATIS sendiri (maks 1 aktif per user) */
+app.post('/api/my-keys/free', requireAuth, (req, res) => {
+  const plan = getPlan('free-500k');
+  const provider = db.providers.find((p) => p.name === FREE_PROVIDER_NAME);
+  if (!provider) return res.status(500).json({ ok: false, msg: 'Provider paket gratis sedang tidak tersedia.' });
+  const already = db.gatewayKeys.find((k) => k.userId === req.user.id && k.planId === 'free-500k' && !k.revoked);
+  if (already) return res.status(400).json({ ok: false, msg: 'Kamu sudah punya key gratis yang aktif.' });
+  const activeIds = new Set(provider.models.filter((m) => m.active).map((m) => m.id));
+  const chosen = FREE_MODEL_IDS.filter((id) => activeIds.has(id) && !SULTAN_IDS.has(id));
+  if (!chosen.length) return res.status(500).json({ ok: false, msg: 'Model paket gratis sedang tidak tersedia.' });
+  const key = 'hestia-' + crypto.randomBytes(18).toString('base64url');
+  const gk = {
+    id: nid('key'), name: 'Key Gratis', key, providerId: provider.id, planId: plan.id,
+    keyType: provider.official ? 'hestia' : 'byok', userId: req.user.id,
+    modelIds: chosen, tokenLimit: plan.tokens, tokensUsed: 0, requests: 0,
+    revoked: false, createdAt: Date.now(), expiresAt: Date.now() + plan.durationDays * 86400000,
+  };
+  db.gatewayKeys.unshift(gk);
+  saveDb(db);
+  res.json({
+    ok: true, key: gk.key, // tampil penuh HANYA saat pembuatan
+    baseUrl: publicBaseUrl(req) + '/v1',
+    expiresAt: gk.expiresAt, tokenLimit: gk.tokenLimit, models: chosen,
   });
 });
 
