@@ -38,7 +38,24 @@ function loadDb() {
       fs.writeFileSync(DB_FILE, JSON.stringify(d, null, 2));
       return d;
     }
-    return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    const d = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    // Migrasi: tandai provider resmi Hestia & jenis key lama
+    let dirty = false;
+    for (const p of d.providers || []) {
+      if (p.official === undefined) {
+        p.official = p.name.indexOf('LikeChat - ') === 0;
+        dirty = true;
+      }
+    }
+    for (const k of d.gatewayKeys || []) {
+      if (!k.keyType) {
+        const pr = (d.providers || []).find((x) => x.id === k.providerId);
+        k.keyType = pr && pr.official ? 'hestia' : 'byok';
+        dirty = true;
+      }
+    }
+    if (dirty) fs.writeFileSync(DB_FILE, JSON.stringify(d, null, 2));
+    return d;
   } catch (e) {
     console.error('DB load error:', e.message);
     return defaultDb();
@@ -191,6 +208,7 @@ app.post('/api/providers', async (req, res) => {
     const p = {
       id: nid('prv'), name: String(name).slice(0, 60), baseUrl: base, apiKey,
       models: finalModels, pingMs: latencyMs, createdAt: Date.now(),
+      official: false, // provider titipan user (BYOK); yang resmi hanya via migrasi
     };
     db.providers.unshift(p);
     saveDb(db);
@@ -250,11 +268,19 @@ app.delete('/api/providers/:id', (req, res) => {
 
 /* ================= GATEWAY KEY (hestia-xxxx) ================= */
 app.post('/api/keys', (req, res) => {
-  const { name, providerId, planId, modelIds } = req.body || {};
+  const { name, providerId, planId, modelIds, keyType } = req.body || {};
   const plan = getPlan(planId);
   const provider = db.providers.find((p) => p.id === providerId);
   if (!provider) return res.status(400).json({ ok: false, msg: 'Pilih provider dulu.' });
   if (!plan) return res.status(400).json({ ok: false, msg: 'Pilih paket dulu.' });
+  // Jenis key: 'hestia' (provider resmi Hestia) vs 'byok' (provider titipan user)
+  const type = keyType === 'hestia' || keyType === 'byok'
+    ? keyType
+    : (provider.official ? 'hestia' : 'byok');
+  if (type === 'hestia' && !provider.official)
+    return res.status(400).json({ ok: false, msg: 'Key Hestia hanya untuk provider resmi.' });
+  if (type === 'byok' && provider.official)
+    return res.status(400).json({ ok: false, msg: 'Provider resmi pakai jenis Key Hestia.' });
 
   const activeModels = provider.models.filter((m) => m.active);
   let chosen = (modelIds && modelIds.length ? modelIds : activeModels.map((m) => m.id))
@@ -266,7 +292,7 @@ app.post('/api/keys', (req, res) => {
   const key = 'hestia-' + crypto.randomBytes(18).toString('base64url');
   const gk = {
     id: nid('key'), name: String(name || 'Key Tanpa Nama').slice(0, 60),
-    key, providerId: provider.id, planId: plan.id,
+    key, providerId: provider.id, planId: plan.id, keyType: type,
     modelIds: chosen, tokenLimit: plan.tokens, tokensUsed: 0,
     requests: 0, revoked: false,
     createdAt: Date.now(), expiresAt: Date.now() + plan.durationDays * 86400000,
@@ -289,6 +315,7 @@ app.get('/api/keys', (req, res) => {
       return {
         id: k.id, name: k.name, masked: maskKey(k.key),
         providerName: provider ? provider.name : '(dihapus)',
+        keyType: k.keyType || (provider && provider.official ? 'hestia' : 'byok'),
         planName: plan.name || k.planId, tokenLimit: k.tokenLimit,
         tokensUsed: k.tokensUsed, tokensLeft: Math.max(0, k.tokenLimit - k.tokensUsed),
         requests: k.requests, modelCount: k.modelIds.length,
