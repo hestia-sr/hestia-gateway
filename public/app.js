@@ -397,7 +397,7 @@ async function loadPricing() {
         <li>Aktif <b style="color:#fff">${p.durationDays} hari</b></li>
         <li>${esc(p.desc.split('•').slice(2).join('•').trim() || p.desc)}</li>
       </ul>
-      <button class="btn primary big" onclick="buyPlan('${p.id}')">Beli Paket</button>
+      <button class="btn primary big" onclick="buySultan('${p.id}')">Beli Paket</button>
     </div>`).join('');
   calcCustom();
   const { orders } = await api('/api/orders');
@@ -411,6 +411,54 @@ function calcCustom() {
   $('#customPrice').textContent = fmtRp(Math.ceil(t / 1000) * CUSTOM_RATE);
 }
 $('#customTokens').addEventListener('input', calcCustom);
+/* ---------- beli paket sultan (dengan pilih model) ---------- */
+async function buySultan(planId) {
+  const { plans, sultanPools } = await api('/api/plans');
+  const plan = plans.find((p) => p.id === planId);
+  if (!plan) return toast('Paket tidak valid');
+  let picked = [];
+  if (plan.pick > 0) {
+    const { models } = await api('/api/models');
+    const pool = (sultanPools[plan.pool] || [])
+      .map(([id, prov]) => {
+        const m = models.find((x) => x.id === id && x.providerName === prov);
+        return { id, alias: (m && m.alias) || id, active: !!(m && m.active) };
+      })
+      .filter((x) => x.active);
+    if (!pool.length) return toast('Model belum tersedia');
+    openModal(`<h3>${ic('diamond')} Pilih ${plan.pick} Model — ${esc(plan.name)}</h3>
+      <div class="pick-list">${pool.map((x) => `
+        <label class="pick-item"><input type="checkbox" value="${esc(x.id)}"><span><b>${esc(x.alias)}</b><br><small class="muted">Hestia</small></span></label>`).join('')}
+      </div>
+      <div class="row gap" style="margin-top:14px">
+        <button class="btn ghost big" style="flex:1" onclick="closeModal()">Batal</button>
+        <button class="btn primary big" style="flex:2" id="btnPickGo">Lanjut</button>
+      </div>`);
+    const boxes = [...document.querySelectorAll('#modalBox .pick-item input')];
+    boxes.forEach((b) => b.addEventListener('change', () => {
+      if (boxes.filter((x) => x.checked).length > plan.pick) { b.checked = false; toast('Maksimal ' + plan.pick + ' model'); }
+    }));
+    $('#btnPickGo').addEventListener('click', () => {
+      picked = boxes.filter((x) => x.checked).map((x) => x.value);
+      if (picked.length !== plan.pick) return toast('Pilih ' + plan.pick + ' model ya');
+      closeModal();
+      finishSultanOrder(plan, picked);
+    });
+    return;
+  }
+  finishSultanOrder(plan, []);
+}
+async function finishSultanOrder(plan, picked) {
+  const name = prompt('Nama pembeli:', '') || 'Tanpa Nama';
+  const r = await api('/api/orders', { method: 'POST', body: JSON.stringify({ planId: plan.id, name, models: picked }) });
+  openModal(`<h3>${ic('receipt')} Order Dibuat</h3>
+    <div class="kv"><span>ID Order</span><b class="mono">${r.order.id}</b></div>
+    <div class="kv"><span>Paket</span><b>${esc(r.order.label)}</b></div>
+    <div class="kv"><span>Total</span><b class="neon">${fmtRp(r.order.price)}</b></div>
+    <p class="muted">${esc(r.payInfo)}</p>
+    <button class="btn primary big" onclick="closeModal()">Mengerti!</button>`);
+  loadPricing();
+}
 async function buyPlan(planId) {
   const name = prompt('Nama pembeli:', '') || 'Tanpa Nama';
   const r = await api('/api/orders', { method: 'POST', body: JSON.stringify({ planId, name }) });
