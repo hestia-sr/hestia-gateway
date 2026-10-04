@@ -600,17 +600,19 @@ async function loadEtalase() {
 }
 
 /* ---------- katalog Model AI ---------- */
+const fmtShort = (n) => n >= 1e6 ? String(Math.round(n / 1e5) / 10).replace(/\.0$/, '') + 'M'
+  : n >= 1e3 ? Math.round(n / 1e3) + 'K' : String(n);
 async function loadCatalog() {
   const { packages } = await api('/api/public/catalog');
   document.getElementById('catalogList').innerHTML = packages.map((p) => {
     const nActive = p.models.filter((m) => m.active).length;
-    return `<div class="card"><div class="card-head"><h3>${esc(p.name)}</h3><span class="muted">${p.price ? fmtRp(p.price) : 'Gratis'}${p.tokens ? ' &bull; ' + fmtN(p.tokens) + ' token' : ''} &bull; ${nActive} dari ${p.models.length} aktif</span></div>
+    return `<div class="card"><div class="card-head"><h3>${esc(p.name)}</h3><span class="muted">${p.price ? fmtRp(p.price) : 'Gratis'}${p.tokens ? ' &bull; ' + fmtShort(p.tokens) + ' token' : ''} &bull; ${nActive} dari ${p.models.length} aktif</span></div>
     <p class="muted" style="margin:0 0 10px">${esc(p.note)}</p>
     <div class="link-grid">${p.models.map((m) => `
       <div class="link-card">
         <b class="mono${m.active ? '' : ' struck'}">${esc(m.alias || m.id)}</b>
         <div class="spec-row">
-          ${m.context ? `<span class="spec">${fmtN(m.context)} konteks</span>` : ''}
+          ${m.context ? `<span class="spec">${fmtShort(m.context)} konteks</span>` : ''}
           ${m.pingMs ? `<span class="spec">${m.pingMs} ms</span>` : ''}
         </div>
         <span class="row gap" style="margin-top:8px">
