@@ -536,15 +536,23 @@ async function buyPlan(planId) {
 }
 async function genFreeKey() {
   if (needLogin()) return;
-  if (!confirm('Buat 1 API key gratis?\n700K token • 7 hari • 10 model')) return;
-  try {
-    const r = await api('/api/my-keys/free', { method: 'POST' });
-    openModal(`<h3>${ic('key')} Key Gratis Dibuat</h3>
-      <div class="kv"><span>Base URL</span><b class="mono">${esc(r.baseUrl)}</b></div>
-      <div class="kv"><span>API Key</span><b class="mono">${esc(r.key)}</b></div>
-      <p class="muted">Simpan baik-baik, key penuh hanya tampil sekali di sini. Key juga tersimpan di halaman Key Saya.</p>
-      <button class="btn primary big" onclick="closeModal();go('mykeys')">Lihat Key Saya</button>`);
-  } catch (e) { toast(e.message); }
+  openModal(`<h3>Pesan dari Hestia Gateway</h3>
+    <p>Akun Gratis hanya bisa membuat 1 api key dan kamu mendapatkan 700k Token 10 Model Ai</p>
+    <div class="row gap" style="margin-top:14px">
+      <button class="btn ghost big" style="flex:1" onclick="closeModal()">Batal</button>
+      <button class="btn primary big" style="flex:1" id="btnGenFreeOk">Oke</button>
+    </div>`);
+  $('#btnGenFreeOk').addEventListener('click', async () => {
+    closeModal();
+    try {
+      const r = await api('/api/my-keys/free', { method: 'POST' });
+      openModal(`<h3>${ic('key')} Key Gratis Dibuat</h3>
+        <div class="kv"><span>Base URL</span><b class="mono">${esc(r.baseUrl)}</b></div>
+        <div class="kv"><span>API Key</span><b class="mono">${esc(r.key)}</b></div>
+        <p class="muted">Simpan baik-baik, key penuh hanya tampil sekali di sini. Key juga tersimpan di halaman Key Saya.</p>
+        <button class="btn primary big" onclick="closeModal();go('mykeys')">Lihat Key Saya</button>`);
+    } catch (e) { toast(e.message); }
+  });
 }
 $('#btnBuyCustom').addEventListener('click', async () => {
   if (needLogin()) return;
