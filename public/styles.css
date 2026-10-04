@@ -96,6 +96,8 @@ select option{background:#14101f}
 .chip.on{background:linear-gradient(135deg,rgba(255,46,154,.35),rgba(139,92,246,.35));
   border-color:var(--pink);box-shadow:0 0 10px rgba(255,46,154,.35)}
 .chip.free::after{content:' FREE';color:var(--ok);font-size:.65rem}
+.chip.locked{opacity:.45;cursor:not-allowed}
+.chip.locked .icsvg{width:.85em;height:.85em;vertical-align:-0.12em;margin-right:2px}
 
 /* key cards */
 .key-card{border:1px solid var(--card-br);border-radius:14px;padding:14px;background:var(--card)}
@@ -208,4 +210,8 @@ canvas{width:100%}
 .mini-btn{background:none;border:none;cursor:pointer;font-size:.85rem;padding:2px 4px;opacity:.7}
 .mini-btn:hover{opacity:1;transform:scale(1.15)}
 .icsvg{width:1.05em;height:1.05em;vertical-align:-0.18em;flex:none}
+.pick-list{display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow-y:auto;margin-top:12px}
+.pick-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--card-br);
+  border-radius:12px;cursor:pointer;font-size:.9rem}
+.pick-item input{width:18px;height:18px;accent-color:var(--pink);flex:none}
 .sidebar nav button .ic .icsvg{width:1.25em;height:1.25em;vertical-align:-0.25em}
