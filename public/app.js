@@ -2,28 +2,53 @@
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 
-const NAV = [
-  { id: 'dashboard', label: 'Dashboard', ic: 'home' },
-  { id: 'provider', label: 'Provider', ic: 'key' },
-  { id: 'keys', label: 'API Key', ic: 'zap' },
-  { id: 'models', label: 'Model', ic: 'bot' },
-  { id: 'usage', label: 'Riwayat', ic: 'history' },
-  { id: 'pricing', label: 'Harga', ic: 'diamond' },
-  { id: 'etalase', label: 'Etalase', ic: 'bag' },
-  { id: 'links', label: 'Tautan', ic: 'link' },
+const NAV_ALL = [
+  { id: 'dashboard', label: 'Dashboard', ic: 'home', roles: ['admin'] },
+  { id: 'provider', label: 'Provider', ic: 'key', roles: ['admin'] },
+  { id: 'keys', label: 'API Key', ic: 'zap', roles: ['admin'] },
+  { id: 'models', label: 'Model', ic: 'bot', roles: ['admin'] },
+  { id: 'usage', label: 'Riwayat', ic: 'history', roles: ['admin'] },
+  { id: 'pricing', label: 'Harga', ic: 'diamond', roles: ['guest', 'user', 'admin'] },
+  { id: 'etalase', label: 'Etalase', ic: 'bag', roles: ['guest', 'user', 'admin'] },
+  { id: 'links', label: 'Tautan', ic: 'link', roles: ['admin'] },
+  { id: 'mykeys', label: 'Key Saya', ic: 'key', roles: ['user'] },
+  { id: 'users', label: 'Pengguna', ic: 'users', roles: ['admin'] },
 ];
+const myRole = () => (ME ? ME.role : 'guest');
 let PLANS = [], CUSTOM_RATE = 10, PROVIDERS = [];
 let SULTAN_IDS = new Set();
+let ME = null; // { email, role, suspended } atau null
+const sess = () => localStorage.getItem('hg_session') || '';
+function deviceId() {
+  let d = localStorage.getItem('hg_device');
+  if (!d) {
+    d = (crypto.randomUUID ? crypto.randomUUID() : 'dev-' + Date.now().toString(36) + Math.random().toString(16).slice(2));
+    localStorage.setItem('hg_device', d);
+  }
+  return d;
+}
+function fingerprint() {
+  const s = [navigator.userAgent, screen.width + 'x' + screen.height,
+    (Intl.DateTimeFormat().resolvedOptions().timeZone || ''), navigator.language || ''].join('|');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h * 31) + s.charCodeAt(i)) >>> 0;
+  return 'fp' + h.toString(16);
+}
 let validatedModels = null; // hasil validasi BYOK (siap simpan)
 let pickedModels = new Set(); // model terpilih utk key baru
 
 /* ---------- helpers ---------- */
 async function api(path, opts = {}) {
+  const token = sess();
   const r = await fetch(path, {
     ...opts,
-    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    headers: { 'Content-Type': 'application/json', ...(token ? { 'X-Session-Token': token } : {}), ...(opts.headers || {}) },
   });
   const j = await r.json().catch(() => ({}));
+  if (r.status === 401 && path !== '/api/auth/me') {
+    if (token) { localStorage.removeItem('hg_session'); ME = null; buildNav(); go('auth'); }
+    throw new Error((j && j.msg) || 'Harus login dulu.');
+  }
   if (!r.ok && !j.ok && j.error) throw new Error(j.error.message || 'Error ' + r.status);
   if (!r.ok && j.msg) throw new Error(j.msg);
   return j;
@@ -71,24 +96,38 @@ const ICONS = {
   calc: '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h.01M12 19h.01M16 19h.01"/>',
   save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/>',
   lock: '<rect x=\"4\" y=\"11\" width=\"16\" height=\"10\" rx=\"2\"/><path d=\"M8 11V7a4 4 0 0 1 8 0v4\"/>',
+  users: '<path d=\"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75\"/>',
+  login: '<path d=\"M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3\"/>',
+  logout: '<path d=\"M9 21H5a2 2 0 0 1 2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9\"/>',
 };
 const ic = (n) => `<svg class="icsvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 
 /* ---------- navigation ---------- */
 function buildNav() {
-  $('#sideNav').innerHTML = NAV.map((n) => `<button data-nav="${n.id}"><span class="ic">${ic(n.ic)}</span>${n.label}</button>`).join('');
-  $('#mobileNav').innerHTML = NAV.map((n) => `<button data-nav="${n.id}"><span class="ic">${ic(n.ic)}</span>${n.label}</button>`).join('');
-  $('#btnMenu').addEventListener('click', () => $('#mdrawerBack').classList.remove('hidden'));
-  $('#mdrawerBack').addEventListener('click', (e) => { if (e.target.id === 'mdrawerBack') $('#mdrawerBack').classList.add('hidden'); });
+  const role = myRole();
+  const items = NAV_ALL.filter((n) => n.roles.includes(role));
+  const html = items.map((n) => `<button data-nav="${n.id}"><span class="ic">${ic(n.ic)}</span>${n.label}</button>`).join('');
+  $('#sideNav').innerHTML = html;
+  $('#mobileNav').innerHTML = html;
   $$('[data-nav]').forEach((b) => b.addEventListener('click', () => go(b.dataset.nav)));
+  const ba = $('#btnAuth');
+  if (ba) {
+    ba.innerHTML = ic(ME ? 'logout' : 'login');
+    ba.title = ME ? 'Keluar (' + ME.email + ')' : 'Masuk / Daftar';
+  }
 }
+const PUBLIC_PAGES = ['etalase', 'pricing', 'auth'];
 function go(id) {
+  const role = myRole();
+  const navIds = NAV_ALL.filter((n) => n.roles.includes(role)).map((n) => n.id);
+  if (!ME && !PUBLIC_PAGES.includes(id)) id = 'auth';
+  else if (ME && !navIds.includes(id) && !PUBLIC_PAGES.includes(id)) id = role === 'admin' ? 'dashboard' : 'etalase';
   $('#mdrawerBack').classList.add('hidden');
   $$('.page').forEach((p) => p.classList.add('hidden'));
   $('#page-' + id).classList.remove('hidden');
   $$('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === id));
   window.scrollTo({ top: 0 });
-  ({ dashboard: loadDashboard, provider: loadProviders, keys: loadKeyForm, models: loadModels, usage: loadUsage, pricing: loadPricing, etalase: loadEtalase }[id] || (() => {}))();
+  ({ dashboard: loadDashboard, provider: loadProviders, keys: loadKeyForm, models: loadModels, usage: loadUsage, pricing: loadPricing, etalase: loadEtalase, auth: () => {}, mykeys: loadMyKeys, users: loadUsers }[id] || (() => {}))();
 }
 
 /* ---------- dashboard ---------- */
@@ -210,7 +249,7 @@ function setKeyTab(t) {
 async function loadKeyForm() {
   const { plans, sultanPools } = await api('/api/plans');
   PLANS = plans;
-  SULTAN_IDS = new Set(((sultanPools && sultanPools.mahal) || []).map(([id]) => id));
+  SULTAN_IDS = new Set((sultanPools && sultanPools.mahal) || []);
   const { providers } = await api('/api/providers');
   PROVIDERS = providers;
   $('#gkPlan').innerHTML = plans.map((p) =>
@@ -258,7 +297,7 @@ $('#btnCreateKey').addEventListener('click', async () => {
   try {
     const r = await api('/api/keys', {
       method: 'POST',
-      body: JSON.stringify({ name, providerId, planId, modelIds: [...pickedModels], keyType: keyTab }),
+      body: JSON.stringify({ name, providerId, planId, modelIds: [...pickedModels], keyType: keyTab, userEmail: $('#gkUserEmail').value.trim() }),
     });
     openModal(`
       <h3>${ic('check')} API Key Berhasil Dibuat!</h3>
@@ -407,7 +446,8 @@ async function loadPricing() {
       <button class="btn primary big" onclick="buySultan('${p.id}')">Beli Paket</button>
     </div>`).join('');
   calcCustom();
-  const { orders } = await api('/api/orders');
+  let orders = [];
+  try { ({ orders } = await api('/api/orders')); } catch (e) { orders = []; }
   $('#orderList').innerHTML = orders.map((o) => `
     <div class="list-item"><span><b>${o.id}</b> — ${esc(o.label)}<br><small class="muted">${esc(o.buyer)} • ${fmtDate(o.createdAt)}</small></span>
     <span style="text-align:right"><b class="neon">${fmtRp(o.price)}</b><br><span class="badge warn">${o.status.toUpperCase()}</span>
@@ -426,18 +466,19 @@ function calcCustom() {
 $('#customTokens').addEventListener('input', calcCustom);
 /* ---------- beli paket sultan (dengan pilih model) ---------- */
 async function buySultan(planId) {
+  if (needLogin()) return;
   const { plans, sultanPools } = await api('/api/plans');
   const plan = plans.find((p) => p.id === planId);
   if (!plan) return toast('Paket tidak valid');
   let picked = [];
   if (plan.pick > 0) {
-    const { models } = await api('/api/models');
+    const { models } = await api('/api/public/models');
     const pool = (sultanPools[plan.pool] || [])
-      .map(([id, prov]) => {
-        const m = models.find((x) => x.id === id && x.providerName === prov);
-        return { id, alias: (m && m.alias) || id, active: !!(m && m.active) };
+      .map((id) => {
+        const m = models.find((x) => x.id === id);
+        return m ? { id, alias: m.alias || id } : null;
       })
-      .filter((x) => x.active);
+      .filter(Boolean);
     if (!pool.length) return toast('Model belum tersedia');
     openModal(`<h3>${ic('diamond')} Pilih ${plan.pick} Model — ${esc(plan.name)}</h3>
       <div class="pick-list">${pool.map((x) => `
@@ -472,7 +513,12 @@ async function finishSultanOrder(plan, picked) {
     <button class="btn primary big" onclick="closeModal()">Mengerti!</button>`);
   loadPricing();
 }
+function needLogin() {
+  if (!ME) { toast('Masuk dulu ya untuk membeli'); go('auth'); return true; }
+  return false;
+}
 async function buyPlan(planId) {
+  if (needLogin()) return;
   const name = prompt('Nama pembeli:', '') || 'Tanpa Nama';
   const r = await api('/api/orders', { method: 'POST', body: JSON.stringify({ planId, name }) });
   openModal(`<h3>${ic('receipt')} Order Dibuat</h3>
@@ -484,6 +530,7 @@ async function buyPlan(planId) {
   loadPricing();
 }
 $('#btnBuyCustom').addEventListener('click', async () => {
+  if (needLogin()) return;
   const customTokens = parseInt($('#customTokens').value) || 0;
   if (customTokens < 1000) return toast('Minimal 1000 token');
   const name = $('#buyerName').value.trim() || 'Tanpa Nama';
@@ -498,38 +545,21 @@ $('#btnBuyCustom').addEventListener('click', async () => {
 });
 
 /* ---------- etalase ---------- */
-const ETALASE = [
-  { tier: 'Text', icon: 'chat', desc: 'Chat, coding, reasoning & analisis', items: [
-    ['openai/gpt-6-astra', 'LikeChat - Odyssey'],
-    ['openai/gpt-6-sol', 'LikeChat - Odyssey'],
-    ['openai/gpt-5.6-sol', 'LikeChat - Odyssey'],
-    ['claude-opus-5.5', 'LikeChat - TNT'],
-    ['claude-opus-5', 'LikeChat - TNT'],
-    ['gpt-6.1-sol', 'LikeChat - TNT'],
-    ['gpt-5.5-xhigh', 'LikeChat - TNT'],
-    ['gpt-5.5', 'LikeChat - TNT'],
-  ]},
-];
 async function loadEtalase() {
-  const { models } = await api('/api/models');
-  const byKey = {};
-  models.forEach((m) => (byKey[m.id + '|' + m.providerName] = m));
-  $('#etalaseTiers').innerHTML = ETALASE.map((t) => `
+  const { tiers } = await api('/api/public/etalase');
+  document.getElementById('etalaseTiers').innerHTML = tiers.map((t) => `
     <div class="card"><div class="card-head"><h3>${ic(t.icon)} ${t.tier}</h3><span class="muted">${t.desc}</span></div>
-    <div class="link-grid">${t.items.map(([id, prov]) => {
-      const m = byKey[id + '|' + prov];
-      const live = !!(m && m.active);
-      return `<div class="link-card">
-        <b class="mono">${esc(m && m.alias ? m.alias : id)}</b>
-        <small>Hestia${m ? ' • ' + fmtN(m.context) + ' konteks' : ''}</small>
+    <div class="link-grid">${t.items.map((m) => `
+      <div class="link-card">
+        <b class="mono">${esc(m.alias || m.id)}</b>
+        <small>Hestia${m.context ? ' \u2022 ' + fmtN(m.context) + ' konteks' : ''}</small>
         <span class="row gap" style="margin-top:8px">
-          <span class="badge ${live ? 'ok' : 'off'}">${live ? 'READY' : 'OFF'}</span>
-          ${m && m.pingMs ? `<small class="muted">${m.pingMs} ms</small>` : ''}
+          <span class="badge ${m.active ? 'ok' : 'off'}">${m.active ? 'READY' : 'OFF'}</span>
+          ${m.pingMs ? `<small class="muted">${m.pingMs} ms</small>` : ''}
         </span>
         <button class="btn primary sm" style="margin-top:10px;width:100%" data-nav="pricing">Beli Paket</button>
-      </div>`;
-    }).join('')}</div></div>`).join('');
-  $$('#etalaseTiers [data-nav]').forEach((b) => b.addEventListener('click', () => go(b.dataset.nav)));
+      </div>`).join('')}</div></div>`).join('');
+  document.querySelectorAll('#etalaseTiers [data-nav]').forEach((b) => b.addEventListener('click', () => go(b.dataset.nav)));
 }
 
 /* ---------- provider links ---------- */
@@ -553,8 +583,106 @@ function loadLinks() {
       <b>${n}</b><small>${d}</small><span class="go">Ambil API key →</span></a>`).join('');
 }
 
+/* ---------- auth ---------- */
+let authMode = 'login';
+function setAuthMode(m) {
+  authMode = m;
+  $('#tabLogin').className = 'btn sm' + (m === 'login' ? ' primary' : ' ghost');
+  $('#tabRegister').className = 'btn sm' + (m === 'register' ? ' primary' : 'ghost');
+  $('#tabLogin').style.flex = $('#tabRegister').style.flex = 1;
+  $('#btnDoAuth').textContent = m === 'login' ? 'Masuk' : 'Daftar';
+  $('#authMsg').textContent = '';
+}
+async function doAuth() {
+  const email = $('#authEmail').value.trim();
+  const password = $('#authPass').value;
+  $('#authMsg').textContent = '';
+  if (!email || !password) { $('#authMsg').textContent = 'Isi email dan sandi dulu.'; return; }
+  try {
+    const r = await api('/api/auth/' + authMode, {
+      method: 'POST',
+      body: JSON.stringify({ email, password, deviceId: deviceId(), fp: fingerprint() }),
+    });
+    localStorage.setItem('hg_session', r.token);
+    ME = r.user;
+    buildNav();
+    if (r.user.suspended) { go('auth'); $('#authMsg').textContent = 'Akun ini di-suspend karena terdeteksi banyak akun dalam 1 device.'; return; }
+    toast(authMode === 'login' ? 'Selamat datang kembali!' : 'Akun dibuat! Selamat datang.');
+    go(ME.role === 'admin' ? 'dashboard' : 'etalase');
+  } catch (e) { $('#authMsg').textContent = e.message; }
+}
+async function doLogout() {
+  try { await api('/api/auth/logout', { method: 'POST' }); } catch (e) {}
+  localStorage.removeItem('hg_session');
+  ME = null;
+  buildNav();
+  go('etalase');
+  toast('Kamu sudah keluar.');
+}
+async function boot() {
+  try {
+    const r = await api('/api/auth/me');
+    ME = r.user;
+  } catch (e) { ME = null; }
+  buildNav();
+  setAuthMode('login');
+  loadLinks();
+  go(ME ? (ME.role === 'admin' ? 'dashboard' : 'etalase') : 'etalase');
+}
+/* ---------- key saya (pembeli) ---------- */
+async function loadMyKeys() {
+  $('#myBaseUrl').textContent = location.origin + '/v1';
+  $('#btnCopyBase').onclick = () => copyText(location.origin + '/v1', 'Base URL disalin!');
+  const { keys } = await api('/api/keys');
+  $('#myKeyList').innerHTML = keys.map((k) => `
+    <div class="card"><div class="card-head"><h3>${esc(k.name)}</h3>
+      <span class="badge ${k.revoked ? 'off' : (k.expired ? 'warn' : 'ok')}">${k.revoked ? 'DICABUT' : (k.expired ? 'KEDALUWARSA' : 'AKTIF')}</span></div>
+      <div class="kv"><span>Paket</span><b>${esc(k.planName)}</b></div>
+      <div class="kv"><span>Token</span><b>${fmtN(k.tokensLeft)} / ${fmtN(k.tokenLimit)}</b></div>
+      <div class="kv"><span>Model</span><b>${k.modelCount} model</b></div>
+      <div class="kv"><span>Key</span><b class="mono">${esc(k.masked)}</b></div>
+      <div class="row gap" style="margin-top:10px">
+        <button class="btn ghost sm" onclick="revealMyKey('${k.id}')">Lihat &amp; Salin</button>
+      </div>
+    </div>`).join('') || '<p class="muted">Belum ada key. Beli paket dulu di halaman Harga ya.</p>';
+}
+async function revealMyKey(id) {
+  const r = await api('/api/keys/' + id + '/reveal');
+  openModal(`<h3>${ic('key')} API Key Kamu</h3>
+    <div class="codebox">${esc(r.key)}</div>
+    <p class="muted">Base URL: <b class="mono">${esc(r.baseUrl)}</b><br>Jaga key ini baik-baik, jangan disebar.</p>
+    <div class="row gap"><button class="btn ghost big" style="flex:1" onclick="copyText('${r.key}','Key disalin!')">Salin</button>
+    <button class="btn primary big" style="flex:1" onclick="closeModal()">Tutup</button></div>`);
+}
+/* ---------- pengguna (admin) ---------- */
+async function loadUsers() {
+  const { users } = await api('/api/users');
+  $('#userList').innerHTML = users.map((u) => `
+    <div class="list-item"><span><b>${esc(u.email)}</b>
+      <span class="badge ${u.role === 'admin' ? 'info' : 'ok'}" style="margin-left:6px">${u.role.toUpperCase()}</span>
+      ${u.suspended ? '<span class="badge off" style="margin-left:6px">SUSPEND</span>' : ''}
+      <br><small class="muted">${u.deviceAccounts} akun di device ini • ${u.keys} key aktif • ${fmtDate(u.createdAt)}</small></span>
+      <span>${u.role !== 'admin' ? (u.suspended
+        ? `<button class="btn ghost sm" onclick="unsuspendUser('${u.id}')">Buka Suspend</button>`
+        : `<button class="btn ghost sm" onclick="suspendUser('${u.id}')">Suspend</button>`) : ''}</span>
+    </div>`).join('') || '<p class="muted">Belum ada pengguna.</p>';
+}
+async function suspendUser(id) {
+  if (!confirm('Suspend akun ini? Key-nya tidak bisa dipakai.')) return;
+  await api('/api/users/' + id + '/suspend', { method: 'POST' });
+  loadUsers(); toast('Akun di-suspend.');
+}
+async function unsuspendUser(id) {
+  await api('/api/users/' + id + '/unsuspend', { method: 'POST' });
+  loadUsers(); toast('Suspend dibuka.');
+}
+
 /* ---------- init ---------- */
-$('#btnRefresh').addEventListener('click', () => { go('dashboard'); toast('Data dimuat ulang'); });
-buildNav();
-loadLinks();
-go('dashboard');
+$('#btnMenu').addEventListener('click', () => $('#mdrawerBack').classList.remove('hidden'));
+$('#mdrawerBack').addEventListener('click', (e) => { if (e.target.id === 'mdrawerBack') $('#mdrawerBack').classList.add('hidden'); });
+$('#btnRefresh').addEventListener('click', () => { const r = myRole(); go(r === 'admin' ? 'dashboard' : 'etalase'); toast('Data dimuat ulang'); });
+$('#btnAuth').addEventListener('click', () => { ME ? doLogout() : go('auth'); });
+$('#tabLogin').addEventListener('click', () => setAuthMode('login'));
+$('#tabRegister').addEventListener('click', () => setAuthMode('register'));
+$('#btnDoAuth').addEventListener('click', doAuth);
+boot();
