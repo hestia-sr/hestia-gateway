@@ -352,7 +352,7 @@ async function loadPricing() {
       <ul class="plan-feats">
         <li><b style="color:#fff">${fmtN(p.tokens)}</b> token</li>
         <li>Aktif <b style="color:#fff">${p.durationDays} hari</b></li>
-        <li>${p.maxModels >= 9999 ? 'FULL model' : p.maxModels + ' model aktif + ' + p.freeModels + ' model free'}</li>
+        <li>${p.maxModels >= 9999 ? 'FULL model' : 's.d. ' + p.maxModels + ' model pilihan'}</li>
       </ul>
       <button class="btn ${i === 2 ? 'primary' : 'ghost'} big" onclick="buyPlan('${p.id}')">Beli Paket</button>
     </div>`).join('');
