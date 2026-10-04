@@ -435,6 +435,7 @@ async function loadPricing() {
         <li><b style="color:#fff">${fmtN(p.tokens)}</b> token</li>
         <li>Aktif <b style="color:#fff">${p.durationDays} hari</b></li>
         <li>${p.maxModels >= 9999 ? 'FULL model' : 's.d. ' + p.maxModels + ' model pilihan'}</li>
+        <li><b style="color:#fff">${p.maxKeys}</b> API key</li>
       </ul>
       ${p.price > 0 ? `<button class="btn primary big" onclick="buyPlan('${p.id}')">Beli Paket</button>` : `<button class="btn primary big" onclick="genFreeKey()">Generate Key Gratis</button>`}
     </div>`;
@@ -447,6 +448,7 @@ async function loadPricing() {
         <li>Bonus <b style="color:#fff">${fmtN(p.tokens)}</b> token</li>
         <li>Aktif <b style="color:#fff">${p.durationDays} hari</b></li>
         <li>${esc(p.desc.split('•').slice(2).join('•').trim() || p.desc)}</li>
+        <li><b style="color:#fff">${p.maxKeys}</b> API key</li>
       </ul>
       <button class="btn primary big" onclick="buySultan('${p.id}')">Beli Paket</button>
     </div>`).join('');
@@ -537,7 +539,7 @@ async function buyPlan(planId) {
 async function genFreeKey() {
   if (needLogin()) return;
   openModal(`<h3>Pesan dari Hestia Gateway</h3>
-    <p>Akun Gratis hanya bisa membuat 1 api key dan kamu mendapatkan 700k Token 10 Model Ai</p>
+    <p>Akun Gratis hanya bisa membuat 2 api key dan kamu mendapatkan 700k Token 10 Model Ai</p>
     <div class="row gap" style="margin-top:14px">
       <button class="btn ghost big" style="flex:1" onclick="closeModal()">Batal</button>
       <button class="btn primary big" style="flex:1" id="btnGenFreeOk">Oke</button>
@@ -549,7 +551,7 @@ async function genFreeKey() {
       openModal(`<h3>${ic('key')} Key Gratis Dibuat</h3>
         <div class="kv"><span>Base URL</span><b class="mono">${esc(r.baseUrl)}</b></div>
         <div class="kv"><span>API Key</span><b class="mono">${esc(r.key)}</b></div>
-        <p class="muted">Simpan baik-baik, key penuh hanya tampil sekali di sini. Key juga tersimpan di halaman Key Saya.</p>
+        <p class="muted">Key ini bisa kamu lihat kapan saja di halaman Key Saya lewat tombol Lihat &amp; Salin.</p>
         <button class="btn primary big" onclick="closeModal();go('mykeys')">Lihat Key Saya</button>`);
     } catch (e) { toast(e.message); }
   });
