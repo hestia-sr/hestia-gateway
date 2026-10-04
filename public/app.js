@@ -538,6 +538,14 @@ async function buyPlan(planId) {
 }
 async function genFreeKey() {
   if (needLogin()) return;
+  try {
+    const { keys } = await api('/api/keys');
+    if (keys.some((k) => k.planName === 'FREE' && !k.revoked && !k.expired)) {
+      toast('Kamu sudah punya key gratis. Buat lagi di halaman Key Saya ya.');
+      go('mykeys');
+      return;
+    }
+  } catch (e) {}
   openModal(`<h3>Pesan dari Hestia Gateway</h3>
     <p>Akun Gratis hanya bisa membuat 2 api key dan kamu mendapatkan 700k Token 10 Model Ai</p>
     <div class="row gap" style="margin-top:14px">
@@ -681,6 +689,32 @@ async function revealMyKey(id) {
     <div class="row gap"><button class="btn ghost big" style="flex:1" onclick="copyText('${r.key}','Key disalin!')">Salin</button>
     <button class="btn primary big" style="flex:1" onclick="closeModal()">Tutup</button></div>`);
 }
+async function makeUserKey() {
+  const { keys } = await api('/api/keys');
+  const freeActive = keys.filter((k) => k.planName === 'FREE' && !k.revoked && !k.expired);
+  if (freeActive.length >= 2) return toast('Key gratis kamu sudah 2, itu maksimal.');
+  openModal(`<h3>${ic('key')} Buat API Key</h3>
+    <p class="muted">Beri nama sesukamu untuk key gratis ini.</p>
+    <label>Nama key<input id="mKeyName" maxlength="60" placeholder="Mis. Key HP"></label>
+    <div class="row gap" style="margin-top:14px">
+      <button class="btn ghost big" style="flex:1" onclick="closeModal()">Batal</button>
+      <button class="btn primary big" style="flex:1" id="btnMakeKeyOk">Buat</button>
+    </div>`);
+  $('#btnMakeKeyOk').addEventListener('click', async () => {
+    const name = ($('#mKeyName').value || '').trim() || 'Key Gratis';
+    closeModal();
+    try {
+      const r = await api('/api/my-keys/free', { method: 'POST', body: JSON.stringify({ name }) });
+      openModal(`<h3>${ic('key')} Key Dibuat</h3>
+        <div class="kv"><span>Nama</span><b>${esc(name)}</b></div>
+        <div class="kv"><span>API Key</span><b class="mono">${esc(r.key)}</b></div>
+        <p class="muted">Key ini bisa kamu lihat kapan saja di halaman ini lewat tombol Lihat &amp; Salin.</p>
+        <button class="btn primary big" onclick="closeModal()">Mengerti!</button>`);
+      loadMyKeys();
+    } catch (e) { toast(e.message); }
+  });
+}
+$('#btnMakeKey').addEventListener('click', makeUserKey);
 /* ---------- pengguna (admin) ---------- */
 async function loadUsers() {
   const { users } = await api('/api/users');
