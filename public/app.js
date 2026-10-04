@@ -380,20 +380,25 @@ $('#btnBuyCustom').addEventListener('click', async () => {
 
 /* ---------- etalase ---------- */
 const ETALASE = [
-  { tier: 'Sultan', icon: '👑', desc: 'Kasta tertinggi — untuk paket VIP', items: [
+  { tier: 'Text', icon: '💬', desc: 'Chat, coding, reasoning & analisis', items: [
     ['claude-opus-5.5', 'LikeChat - TNT'],
     ['claude-opus-5', 'LikeChat - TNT'],
+    ['claude-sonnet-4-6', 'LikeChat - VYCE (chat)'],
     ['gpt-6.1-sol', 'LikeChat - TNT'],
     ['gpt-5.5-xhigh', 'LikeChat - TNT'],
-    ['claude-sonnet-4-6', 'LikeChat - VYCE (chat)'],
-  ]},
-  { tier: 'Harian', icon: '⚡', desc: 'Enak dipakai tiap hari — untuk paket MEMBER', items: [
+    ['gpt-5.5', 'LikeChat - TNT'],
     ['DeepSeek-V4-Pro', 'LikeChat - hcnsec (chat)'],
+    ['DeepSeek-V4.1-Flash', 'LikeChat - hcnsec (chat)'],
     ['glm-5.3', 'LikeChat - hcnsec (chat)'],
     ['kimi-k3', 'LikeChat - hcnsec (chat)'],
     ['openai/gpt-oss-120b', 'LikeChat - HyperFusion (file/gambar)'],
     ['deepseek-ai/DeepSeek-V4-Flash-0731', 'LikeChat - HyperFusion (file/gambar)'],
-    ['gpt-5.5', 'LikeChat - TNT'],
+  ]},
+  { tier: 'text2img', icon: '🎨', desc: 'Buat gambar dari teks', items: [
+    ['grok-imagine-2', 'LikeChat - VYCE (chat)'],
+  ]},
+  { tier: 'img2img', icon: '🖼️', desc: 'Edit gambar', items: [
+    ['step-image-edit-2', 'LikeChat - hcnsec (chat)'],
   ]},
 ];
 async function loadEtalase() {
@@ -401,7 +406,7 @@ async function loadEtalase() {
   const byKey = {};
   models.forEach((m) => (byKey[m.id + '|' + m.providerName] = m));
   $('#etalaseTiers').innerHTML = ETALASE.map((t) => `
-    <div class="card"><div class="card-head"><h3>${t.icon} Kasta ${t.tier}</h3><span class="muted">${t.desc}</span></div>
+    <div class="card"><div class="card-head"><h3>${t.icon} ${t.tier}</h3><span class="muted">${t.desc}</span></div>
     <div class="link-grid">${t.items.map(([id, prov]) => {
       const m = byKey[id + '|' + prov];
       const live = !!(m && m.active);
