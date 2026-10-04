@@ -71,6 +71,11 @@
     <p class="page-sub">Generate key <code class="mono">hestia-xxxx</code> + Base URL web ini — pakai di agent favorit / web lain.</p>
     <div class="card glow">
       <h3>⚡ Buat API Key Baru</h3>
+      <div class="row gap" style="margin-bottom:10px">
+        <button class="btn primary sm" id="tabHestia">🌟 Key Hestia</button>
+        <button class="btn ghost sm" id="tabByok">🔑 Key Sendiri (BYOK)</button>
+      </div>
+      <p class="muted" id="keyTypeDesc" style="margin:0 0 12px"></p>
       <div class="form-grid">
         <label>Nama Key<input id="gkName" placeholder="cth: Key SillyTavern"></label>
         <label>Provider<select id="gkProvider"></select></label>
