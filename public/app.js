@@ -75,10 +75,13 @@ const ic = (n) => `<svg class="icsvg" viewBox="0 0 24 24" fill="none" stroke="cu
 /* ---------- navigation ---------- */
 function buildNav() {
   $('#sideNav').innerHTML = NAV.map((n) => `<button data-nav="${n.id}"><span class="ic">${ic(n.ic)}</span>${n.label}</button>`).join('');
-  $('#bottomNav').innerHTML = NAV.map((n) => `<button data-nav="${n.id}"><span class="ic">${ic(n.ic)}</span>${n.label}</button>`).join('');
+  $('#mobileNav').innerHTML = NAV.map((n) => `<button data-nav="${n.id}"><span class="ic">${ic(n.ic)}</span>${n.label}</button>`).join('');
+  $('#btnMenu').addEventListener('click', () => $('#mdrawerBack').classList.remove('hidden'));
+  $('#mdrawerBack').addEventListener('click', (e) => { if (e.target.id === 'mdrawerBack') $('#mdrawerBack').classList.add('hidden'); });
   $$('[data-nav]').forEach((b) => b.addEventListener('click', () => go(b.dataset.nav)));
 }
 function go(id) {
+  $('#mdrawerBack').classList.add('hidden');
   $$('.page').forEach((p) => p.classList.add('hidden'));
   $('#page-' + id).classList.remove('hidden');
   $$('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === id));
