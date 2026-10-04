@@ -115,6 +115,11 @@ function buildNav() {
     ba.innerHTML = ic(ME ? 'logout' : 'login');
     ba.title = ME ? 'Keluar (' + ME.email + ')' : 'Masuk / Daftar';
   }
+  const bs = $('#btnAuthSide');
+  if (bs) {
+    bs.innerHTML = (ME ? ic('logout') + ' Keluar' : ic('login') + ' Masuk / Daftar') + (ME ? ' <small class="muted">' + esc(ME.email) + '</small>' : '');
+    bs.onclick = () => { ME ? doLogout() : go('auth'); };
+  }
 }
 const PUBLIC_PAGES = ['etalase', 'pricing', 'auth'];
 function go(id) {
