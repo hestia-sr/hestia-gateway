@@ -589,7 +589,7 @@ app.post('/api/my-keys/free', requireAuth, (req, res) => {
   if (!chosen.length) return res.status(500).json({ ok: false, msg: 'Model paket gratis sedang tidak tersedia.' });
   const key = 'hestia-' + crypto.randomBytes(18).toString('base64url');
   const gk = {
-    id: nid('key'), name: 'Key Gratis', key, providerId: provider.id, planId: plan.id,
+    id: nid('key'), name: String((req.body && req.body.name) || 'Key Gratis').slice(0, 60), key, providerId: provider.id, planId: plan.id,
     keyType: provider.official ? 'hestia' : 'byok', userId: req.user.id,
     modelIds: chosen, tokenLimit: plan.tokens, tokensUsed: 0, requests: 0,
     revoked: false, createdAt: Date.now(), expiresAt: Date.now() + plan.durationDays * 86400000,
