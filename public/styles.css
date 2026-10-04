@@ -39,6 +39,8 @@ h1,h2,h3{margin:0}
 .logo-dot{width:14px;height:14px;border-radius:50%;
   background:radial-gradient(circle at 35% 35%, #ffd1e8, var(--pink) 60%, var(--purple-deep));
   box-shadow:0 0 14px var(--pink)}
+.logo-img{width:30px;height:30px;border-radius:50%;object-fit:cover;object-position:top;
+  box-shadow:0 0 12px var(--pink);flex:none}
 .main{position:relative;z-index:1;padding:18px 16px 40px;max-width:1100px;margin:0 auto}
 .page-title{font-size:1.5rem;display:flex;align-items:center;gap:10px}
 .page-sub{color:var(--muted);margin:6px 0 18px;font-size:.92rem}
