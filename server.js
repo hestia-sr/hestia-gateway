@@ -84,12 +84,14 @@ const nid = (p) => p + '_' + Date.now().toString(36) + crypto.randomBytes(3).toS
 
 /* ---------------- Paket harga (Rupiah) ---------------- */
 const PLANS = [
-  { id: 'member-500k', name: 'MEMBER', tokens: 500000, price: 5000, durationDays: 3, maxModels: 5, freeModels: 3,
-    desc: '500K token • 5 model aktif + 3 model free' },
-  { id: 'member-1m', name: 'MEMBER', tokens: 1000000, price: 10000, durationDays: 7, maxModels: 7, freeModels: 3,
-    desc: '1M token • 7 model aktif + 3 model free' },
-  { id: 'vip-5m', name: 'VIP', tokens: 5000000, price: 35000, durationDays: 30, maxModels: 9999, freeModels: 9999,
-    desc: '5M token • 1 bulan • FULL model' },
+  { id: 'free-500k', name: 'FREE', tokens: 500000, price: 0, durationDays: 7, maxModels: 5, freeModels: 0,
+    desc: '500K token • 7 hari • 5 model (khusus xkiro)' },
+  { id: 'basic-1m', name: 'BASIC', tokens: 1000000, price: 10000, durationDays: 7, maxModels: 10, freeModels: 0,
+    desc: '1M token • 7 hari • 10 model' },
+  { id: 'member-3m', name: 'MEMBER', tokens: 3000000, price: 25000, durationDays: 14, maxModels: 20, freeModels: 0,
+    desc: '3M token • 14 hari • 20 model' },
+  { id: 'vip-8m', name: 'VIP', tokens: 8000000, price: 50000, durationDays: 30, maxModels: 9999, freeModels: 0,
+    desc: '8M token • 30 hari • FULL model' },
 ];
 const CUSTOM_RATE_PER_1K = 10; // Rp10 per 1000 token (ikut harga 5k/500k)
 const getPlan = (id) => PLANS.find((p) => p.id === id);
