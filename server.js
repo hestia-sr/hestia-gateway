@@ -96,6 +96,12 @@ const PLANS = [
     desc: '3M token • 14 hari • 20 model' },
   { id: 'vip-8m', name: 'VIP', tokens: 8000000, price: 50000, durationDays: 30, maxModels: 9999, freeModels: 0,
     desc: '8M token • 30 hari • FULL model' },
+  { id: 'sultan-astra', name: 'SULTAN ASTRA', tokens: 1500000, price: 350000, durationDays: 30, maxModels: 1, sultan: true,
+    desc: '1,5M token • 30 hari • GPT-6 Astra (model otomatis masuk key)' },
+  { id: 'sultan-sol', name: 'SULTAN SOL', tokens: 1000000, price: 150000, durationDays: 30, maxModels: 1, sultan: true,
+    desc: '1M token • 30 hari • GPT-6 Sol / GPT-5.6 Sol (pilih 1)' },
+  { id: 'sultan-tnt', name: 'SULTAN TNT', tokens: 1000000, price: 150000, durationDays: 30, maxModels: 1, sultan: true,
+    desc: '1M token • 30 hari • Opus 5.5 / Opus 5 / GPT-6.1 Sol / GPT-5.5 XHigh / GPT-5.5 (pilih 1)' },
 ];
 const CUSTOM_RATE_PER_1K = 10; // Rp10 per 1000 token (ikut harga 5k/500k)
 const getPlan = (id) => PLANS.find((p) => p.id === id);
