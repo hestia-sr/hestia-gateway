@@ -154,6 +154,9 @@ select option{background:#14101f}
 .link-card b{display:block;margin-bottom:4px;overflow-wrap:anywhere;word-break:break-word}
 .link-card small{color:var(--muted);font-size:.78rem}
 .link-card .go{color:var(--pink-soft);font-size:.8rem;margin-top:8px;display:block}
+.spec-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.spec{font-size:.72rem;color:var(--pink-soft);background:rgba(255,46,154,.1);
+  border:1px solid var(--card-br);padding:2px 9px;border-radius:20px;white-space:nowrap}
 
 /* mobile drawer */
 .mdrawer-back{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.6);backdrop-filter:blur(3px)}
