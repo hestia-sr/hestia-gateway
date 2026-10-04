@@ -263,6 +263,16 @@ app.post('/api/users/:id/unsuspend', requireAdmin, (req, res) => {
   if (!u) return res.status(404).json({ ok: false });
   u.suspended = false; saveDb(db); res.json({ ok: true });
 });
+app.delete('/api/users/:id', requireAdmin, (req, res) => {
+  const i = db.users.findIndex((x) => x.id === req.params.id);
+  if (i < 0) return res.status(404).json({ ok: false });
+  if (db.users[i].role === 'admin') return res.status(400).json({ ok: false, msg: 'Tidak bisa hapus admin.' });
+  const uid = db.users[i].id;
+  db.users.splice(i, 1);
+  db.sessions = db.sessions.filter((s) => s.userId !== uid);
+  for (const k of db.gatewayKeys) if (k.userId === uid) k.revoked = true;
+  saveDb(db); res.json({ ok: true });
+});
 
 /* ---------------- Etalase (daftar model unggulan, tanpa nama provider) ---------------- */
 const ETALASE_DEF = [
