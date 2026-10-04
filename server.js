@@ -105,7 +105,7 @@ const PLANS = [
   { id: 'sultan-plus', name: 'SULTAN+', tokens: 1000000, price: 150000, durationDays: 30, maxModels: 3, maxKeys: 50, sultan: true, pick: 3, pool: 'mahal',
     desc: '1M token • 30 hari • pilih 3 dari 8 model mahal' },
   { id: 'sultan-plus2', name: 'SULTAN++', tokens: 1000000, price: 100000, durationDays: 30, maxModels: 5, maxKeys: 50, sultan: true, pick: 5, pool: 'mid',
-    desc: '1M token • 30 hari • pilih 5 model menengah' },
+    desc: '1M token • 30 hari • pilih 5 model menengah + bonus' },
 ];
 const CUSTOM_RATE_PER_1K = 10; // Rp10 per 1000 token (ikut harga 5k/500k)
 const getPlan = (id) => PLANS.find((p) => p.id === id);
@@ -148,6 +148,10 @@ const SULTAN_MID = [
   ['openai/gpt-oss-120b', 'LikeChat - HyperFusion (file/gambar)'],
   ['deepseek-ai/DeepSeek-V4-Flash-0731', 'LikeChat - HyperFusion (file/gambar)'],
   ['grok-imagine-2', 'LikeChat - VYCE (chat)'],
+];
+// Bonus SULTAN++: 1 model sedikit lebih tinggi (lumayan buat coding), dipilih Hestia.
+const SULTAN_PLUS2_BONUS = [
+  ['claude-opus-5', 'LikeChat - TNT'],
 ];
 
 const SULTAN_IDS = new Set(SULTAN_MAHAL.map(([id]) => id));
@@ -439,7 +443,7 @@ app.get('/api/stats', requireAdmin, (req, res) => {
 
 app.get('/api/plans', (req, res) => res.json({
   plans: PLANS, customRatePer1K: CUSTOM_RATE_PER_1K,
-  sultanPools: { mahal: SULTAN_MAHAL.map(([id]) => id), mid: SULTAN_MID.map(([id]) => id) },
+  sultanPools: { mahal: SULTAN_MAHAL.map(([id]) => id), mid: SULTAN_MID.map(([id]) => id), plus2Bonus: SULTAN_PLUS2_BONUS.map(([id]) => id) },
 }));
 
 /* ================= PROVIDER (BYOK) ================= */
@@ -745,7 +749,7 @@ function poolLive(poolDef) {
   });
 }
 app.get('/api/bot/pools', requireBot, (req, res) => {
-  res.json({ ok: true, pools: { mahal: poolLive(SULTAN_MAHAL), mid: poolLive(SULTAN_MID) } });
+  res.json({ ok: true, pools: { mahal: poolLive(SULTAN_MAHAL), mid: poolLive(SULTAN_MID), plus2Bonus: poolLive(SULTAN_PLUS2_BONUS) } });
 });
 // Buat key paket berbayar untuk email pembeli (dipakai bot setelah admin menyetujui pembayaran).
 // Satu key terikat satu provider; pembelian multi-provider menghasilkan beberapa key.
@@ -765,7 +769,8 @@ app.post('/api/bot/keys', requireBot, (req, res) => {
   };
 
   if (plan.sultan) {
-    const poolDef = plan.pool === 'mid' ? SULTAN_MID : SULTAN_MAHAL;
+    let poolDef = plan.pool === 'mid' ? SULTAN_MID : SULTAN_MAHAL;
+    if (plan.id === 'sultan-plus2') poolDef = poolDef.concat(SULTAN_PLUS2_BONUS); // bonus 1 model sedikit lebih tinggi
     const live = poolLive(poolDef);
     if (plan.pick > 0) {
       const picks = Array.isArray(modelPicks) ? modelPicks.map(String) : [];
