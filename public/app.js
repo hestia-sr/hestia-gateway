@@ -664,7 +664,8 @@ async function loadUsers() {
       <br><small class="muted">${u.deviceAccounts} akun di device ini • ${u.keys} key aktif • ${fmtDate(u.createdAt)}</small></span>
       <span>${u.role !== 'admin' ? (u.suspended
         ? `<button class="btn ghost sm" onclick="unsuspendUser('${u.id}')">Buka Suspend</button>`
-        : `<button class="btn ghost sm" onclick="suspendUser('${u.id}')">Suspend</button>`) : ''}</span>
+        : `<button class="btn ghost sm" onclick="suspendUser('${u.id}')">Suspend</button>`)
+        + ` <button class="mini-btn" title="Hapus akun" onclick="delUser('${u.id}')">${ic('trash')}</button>` : ''}</span>
     </div>`).join('') || '<p class="muted">Belum ada pengguna.</p>';
 }
 async function suspendUser(id) {
@@ -675,6 +676,11 @@ async function suspendUser(id) {
 async function unsuspendUser(id) {
   await api('/api/users/' + id + '/unsuspend', { method: 'POST' });
   loadUsers(); toast('Suspend dibuka.');
+}
+async function delUser(id) {
+  if (!confirm('Hapus akun ini permanen? Key miliknya ikut dicabut.')) return;
+  await api('/api/users/' + id, { method: 'DELETE' });
+  loadUsers(); toast('Akun dihapus.');
 }
 
 /* ---------- init ---------- */
