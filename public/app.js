@@ -131,7 +131,7 @@ async function loadProviders() {
   PROVIDERS = providers;
   $('#providerList').innerHTML = providers.map((p) => `
     <div class="card">
-      <div class="card-head"><h3>${esc(p.name)}</h3>
+      <div class="card-head"><h3>${esc(p.name)} ${p.official ? '<span class="badge info">🌟 RESMI</span>' : ''}</h3>
         <span><span class="badge ${p.pingMs ? 'ok' : 'warn'}">${p.pingMs ? p.pingMs + ' ms' : 'belum di-ping'}</span>
         <span class="badge info">${p.activeCount}/${p.models.length} aktif</span></span></div>
       <div class="mono" style="font-size:.72rem;color:var(--muted);margin-bottom:8px">${esc(p.baseUrl)}</div>
@@ -159,21 +159,40 @@ async function delProvider(id) {
 }
 
 /* ---------- gateway keys ---------- */
+let keyTab = 'hestia'; // 'hestia' = provider resmi Hestia | 'byok' = provider titipan user
+const KEY_DESCS = {
+  hestia: '🌟 <b>Key Hestia</b>: pakai model-model resmi milik Hestia. Token kepotong dari kuota Hestia — beli paketnya di halaman Harga.',
+  byok: '🔑 <b>Key Sendiri (BYOK)</b>: pakai API key & Base URL milikmu sendiri. Token kepotong dari key-mu, bukan dari Hestia.',
+};
+function setKeyTab(t) {
+  keyTab = t;
+  pickedModels = new Set();
+  const hb = $('#tabHestia'), bb = $('#tabByok');
+  hb.className = 'btn sm ' + (t === 'hestia' ? 'primary' : 'ghost');
+  bb.className = 'btn sm ' + (t === 'byok' ? 'primary' : 'ghost');
+  $('#keyTypeDesc').innerHTML = KEY_DESCS[t];
+  fillProviderSelect();
+  renderModelPick();
+}
 async function loadKeyForm() {
   const { plans } = await api('/api/plans');
   PLANS = plans;
   const { providers } = await api('/api/providers');
   PROVIDERS = providers;
-  $('#gkProvider').innerHTML = providers.map((p) =>
-    `<option value="${p.id}">${esc(p.name)} (${p.activeCount} model aktif)</option>`).join('')
-    || '<option value="">— tambah provider dulu —</option>';
   $('#gkPlan').innerHTML = plans.map((p) =>
     `<option value="${p.id}">${p.name} — ${fmtN(p.tokens)} token / ${fmtRp(p.price)} / ${p.durationDays} hari</option>`).join('');
-  pickedModels = new Set();
-  renderModelPick();
+  $('#tabHestia').onclick = () => setKeyTab('hestia');
+  $('#tabByok').onclick = () => setKeyTab('byok');
   $('#gkProvider').onchange = renderModelPick;
   $('#gkPlan').onchange = renderModelPick;
+  setKeyTab(keyTab);
   loadKeyList();
+}
+function fillProviderSelect() {
+  const list = PROVIDERS.filter((p) => (keyTab === 'hestia' ? p.official : !p.official));
+  $('#gkProvider').innerHTML = list.map((p) =>
+    `<option value="${p.id}">${esc(p.name)} (${p.activeCount} model aktif)</option>`).join('')
+    || `<option value="">— ${keyTab === 'hestia' ? 'tidak ada provider resmi' : 'tambah dulu di halaman Provider'} —</option>`;
 }
 function renderModelPick() {
   const p = PROVIDERS.find((x) => x.id === $('#gkProvider').value);
@@ -196,12 +215,12 @@ function renderModelPick() {
 $('#btnCreateKey').addEventListener('click', async () => {
   const name = $('#gkName').value.trim() || 'Key Tanpa Nama';
   const providerId = $('#gkProvider').value, planId = $('#gkPlan').value;
-  if (!providerId) return toast('Tambah provider dulu di halaman Provider');
+  if (!providerId) return toast(keyTab === 'hestia' ? 'Tidak ada provider resmi' : 'Tambah provider dulu di halaman Provider');
   if (!pickedModels.size) return toast('Pilih minimal 1 model');
   try {
     const r = await api('/api/keys', {
       method: 'POST',
-      body: JSON.stringify({ name, providerId, planId, modelIds: [...pickedModels] }),
+      body: JSON.stringify({ name, providerId, planId, modelIds: [...pickedModels], keyType: keyTab }),
     });
     openModal(`
       <h3>🎉 API Key Berhasil Dibuat!</h3>
@@ -226,8 +245,9 @@ async function loadKeyList() {
   $('#keyList').innerHTML = keys.map((k) => {
     const pct = k.tokenLimit ? Math.min(100, Math.round((k.tokensUsed / k.tokenLimit) * 100)) : 0;
     const st = k.revoked ? '<span class="badge off">DICABUT</span>' : k.expired ? '<span class="badge warn">KEDALUWARSA</span>' : '<span class="badge ok">AKTIF</span>';
+    const kt = k.keyType === 'hestia' ? '<span class="badge info">🌟 HESTIA</span>' : '<span class="badge ok">🔑 BYOK</span>';
     return `<div class="key-card">
-      <div class="card-head"><h3>${esc(k.name)}</h3>${st}</div>
+      <div class="card-head"><h3>${esc(k.name)}</h3><span class="row gap">${kt}${st}</span></div>
       <div class="keyline">${esc(k.masked)}</div>
       <div class="kv"><span>Paket</span><b>${esc(k.planName)}</b></div>
       <div class="kv"><span>Provider</span><b>${esc(k.providerName)}</b></div>
