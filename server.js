@@ -336,6 +336,67 @@ app.get('/api/public/models', (req, res) => {
   }));
   res.json({ models: rows });
 });
+/* Katalog model per paket (PUBLIK, untuk halaman "Model AI") — hanya data non-sensitif:
+   id, alias, status aktif live, nama paket, harga. Tanpa nama provider internal / secret. */
+app.get('/api/public/catalog', (req, res) => {
+  const strip = (m) => ({ id: m.id, alias: m.alias || m.id, active: !!m.active });
+  const packages = [];
+  // FREE: 10 model paket gratis, status live dari provider hcnsec
+  const freeProv = db.providers.find((p) => p.name === FREE_PROVIDER_NAME);
+  packages.push({
+    id: 'free-500k', name: 'FREE', price: 0,
+    note: 'Paket gratis — daftar via web untuk generate key.',
+    models: FREE_MODEL_IDS.map((id) => {
+      const m = freeProv && freeProv.models.find((x) => x.id === id);
+      return strip({ id, alias: (m && m.alias) || id, active: !!(m && m.active) });
+    }),
+  });
+  // BASIC / MEMBER / VIP: replika PERSIS logika auto-assign (provider berurutan, aktif, bukan sultan, maks maxModels)
+  const planNotes = {
+    'basic-1m': '10 model dipilih otomatis.',
+    'member-3m': '20 model dipilih otomatis.',
+    'vip-8m': 'Semua model (akses penuh).',
+  };
+  for (const pid of ['basic-1m', 'member-3m', 'vip-8m']) {
+    const plan = getPlan(pid);
+    const models = [];
+    let count = 0;
+    for (const p of db.providers) {
+      for (const m of p.models) {
+        if (!m.active || SULTAN_IDS.has(m.id)) continue;
+        if (count >= plan.maxModels) break;
+        models.push(strip(m));
+        count++;
+      }
+      if (count >= plan.maxModels) break;
+    }
+    packages.push({ id: plan.id, name: plan.name, price: plan.price, note: planNotes[pid], models });
+  }
+  // SULTAN: semua model mahal live
+  packages.push({
+    id: 'sultan', name: 'SULTAN', price: 350000,
+    note: 'Semua 8 model mahal terbuka otomatis.',
+    models: poolLive(SULTAN_MAHAL).map(strip),
+  });
+  // SULTAN+: pilih 3 dari 8 model mahal
+  packages.push({
+    id: 'sultan-plus', name: 'SULTAN+', price: 150000,
+    note: 'Pilih 3 dari 8 model mahal.',
+    models: poolLive(SULTAN_MAHAL).map(strip),
+  });
+  // SULTAN++: 8 model menengah + bonus, live
+  const bonusIds = new Set(SULTAN_PLUS2_BONUS.map(([bid]) => bid));
+  packages.push({
+    id: 'sultan-plus2', name: 'SULTAN++', price: 100000,
+    note: 'Pilih 5 model menengah + bonus.',
+    models: poolLive(SULTAN_MID.concat(SULTAN_PLUS2_BONUS)).map((m) => {
+      const s = strip(m);
+      if (bonusIds.has(s.id)) s.bonus = true;
+      return s;
+    }),
+  });
+  res.json({ packages });
+});
 function apiBase(baseUrl) {
   let u = String(baseUrl || '').trim().replace(/\/+$/, '');
   if (!/\/v1$/.test(u)) u += '/v1';
