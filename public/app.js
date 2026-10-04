@@ -385,7 +385,7 @@ async function loadPricing() {
         <li>Aktif <b style="color:#fff">${p.durationDays} hari</b></li>
         <li>${p.maxModels >= 9999 ? 'FULL model' : 's.d. ' + p.maxModels + ' model pilihan'}</li>
       </ul>
-      <button class="btn ${i === 2 ? 'primary' : 'ghost'} big" onclick="buyPlan('${p.id}')">Beli Paket</button>
+      ${p.price > 0 ? `<button class="btn ${i === 2 ? 'primary' : 'ghost'} big" onclick="buyPlan('${p.id}')">Beli Paket</button>` : ''}
     </div>`).join('');
   calcCustom();
   const { orders } = await api('/api/orders');
