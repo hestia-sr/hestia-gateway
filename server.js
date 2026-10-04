@@ -205,6 +205,14 @@ function requireAdmin(req, res, next) {
     next();
   });
 }
+/* Auth khusus bot Telegram: header x-bot-token harus sama dengan env BOT_API_TOKEN */
+const BOT_API_TOKEN = String(process.env.BOT_API_TOKEN || '');
+function requireBot(req, res, next) {
+  if (!BOT_API_TOKEN) return res.status(500).json({ ok: false, msg: 'BOT_API_TOKEN belum diset di server.' });
+  if (req.headers['x-bot-token'] !== BOT_API_TOKEN)
+    return res.status(403).json({ ok: false, msg: 'Token bot tidak valid.' });
+  next();
+}
 function deviceAbusers(dev, fp) {
   return db.users.filter((u) => u.role !== 'admin' && (u.deviceId === dev || (fp && u.fp === fp)));
 }
@@ -526,38 +534,39 @@ app.delete('/api/providers/:id', requireAdmin, (req, res) => {
 });
 
 /* ================= GATEWAY KEY (hestia-xxxx) ================= */
-app.post('/api/keys', requireAdmin, (req, res) => {
-  const { name, providerId, planId, modelIds, keyType, userEmail } = req.body || {};
+/* Inti pembuatan key — dipakai dashboard admin & bot Telegram */
+function issueGatewayKey(body, req) {
+  const { name, providerId, planId, modelIds, keyType, userEmail } = body || {};
   const plan = getPlan(planId);
   const provider = db.providers.find((p) => p.id === providerId);
-  if (!provider) return res.status(400).json({ ok: false, msg: 'Pilih provider dulu.' });
-  if (!plan) return res.status(400).json({ ok: false, msg: 'Pilih paket dulu.' });
+  if (!provider) return { ok: false, msg: 'Pilih provider dulu.' };
+  if (!plan) return { ok: false, msg: 'Pilih paket dulu.' };
   let userId = null;
   if (userEmail) {
     const u = db.users.find((x) => x.email === String(userEmail).trim().toLowerCase());
-    if (!u) return res.status(400).json({ ok: false, msg: 'Email pembeli tidak terdaftar.' });
+    if (!u) return { ok: false, msg: 'Email pembeli tidak terdaftar.' };
     userId = u.id;
     const activeCount = db.gatewayKeys.filter((k) => k.userId === userId && k.planId === plan.id && keyActive(k)).length;
     if (activeCount >= (plan.maxKeys || 1))
-      return res.status(400).json({ ok: false, msg: 'Pembeli sudah punya ' + activeCount + ' key aktif di paket ' + plan.name + ' (maks ' + plan.maxKeys + ').' });
+      return { ok: false, msg: 'Pembeli sudah punya ' + activeCount + ' key aktif di paket ' + plan.name + ' (maks ' + plan.maxKeys + ').' };
   }
   // Jenis key: 'hestia' (provider resmi Hestia) vs 'byok' (provider titipan user)
   const type = keyType === 'hestia' || keyType === 'byok'
     ? keyType
     : (provider.official ? 'hestia' : 'byok');
   if (type === 'hestia' && !provider.official)
-    return res.status(400).json({ ok: false, msg: 'Key Hestia hanya untuk provider resmi.' });
+    return { ok: false, msg: 'Key Hestia hanya untuk provider resmi.' };
   if (type === 'byok' && provider.official)
-    return res.status(400).json({ ok: false, msg: 'Provider resmi pakai jenis Key Hestia.' });
+    return { ok: false, msg: 'Provider resmi pakai jenis Key Hestia.' };
 
   const activeModels = provider.models.filter((m) => m.active);
   let chosen = (modelIds && modelIds.length ? modelIds : activeModels.map((m) => m.id))
     .filter((id) => activeModels.some((m) => m.id === id));
-  if (!chosen.length) return res.status(400).json({ ok: false, msg: 'Tidak ada model aktif yang dipilih.' });
+  if (!chosen.length) return { ok: false, msg: 'Tidak ada model aktif yang dipilih.' };
   if (chosen.length > plan.maxModels)
-    return res.status(400).json({ ok: false, msg: 'Paket ' + plan.name + ' maksimal ' + plan.maxModels + ' model.' });
+    return { ok: false, msg: 'Paket ' + plan.name + ' maksimal ' + plan.maxModels + ' model.' };
   if (!plan.sultan && chosen.some((id) => SULTAN_IDS.has(id)))
-    return res.status(400).json({ ok: false, msg: 'Model Sultan hanya untuk paket Sultan.' });
+    return { ok: false, msg: 'Model Sultan hanya untuk paket Sultan.' };
 
   const key = 'hestia-' + crypto.randomBytes(18).toString('base64url');
   const gk = {
@@ -569,12 +578,20 @@ app.post('/api/keys', requireAdmin, (req, res) => {
   };
   db.gatewayKeys.unshift(gk);
   saveDb(db);
-  res.json({
+  return {
     ok: true,
-    key: gk.key, // tampil penuh HANYA saat pembuatan
-    baseUrl: publicBaseUrl(req) + '/v1',
-    expiresAt: gk.expiresAt, tokenLimit: gk.tokenLimit, modelCount: chosen.length,
-  });
+    data: {
+      key: gk.key, // tampil penuh HANYA saat pembuatan
+      baseUrl: publicBaseUrl(req) + '/v1',
+      expiresAt: gk.expiresAt, tokenLimit: gk.tokenLimit, modelCount: chosen.length,
+      keyName: gk.name, planName: plan.name,
+    },
+  };
+}
+app.post('/api/keys', requireAdmin, (req, res) => {
+  const r = issueGatewayKey(req.body || {}, req);
+  if (!r.ok) return res.status(400).json({ ok: false, msg: r.msg });
+  res.json({ ok: true, ...r.data });
 });
 
 /* Pengguna generate 1 key GRATIS sendiri (maks 1 aktif per user) */
@@ -709,6 +726,93 @@ app.delete('/api/orders/:id', requireAdmin, (req, res) => {
   if (i < 0) return res.status(404).json({ ok: false, msg: 'Order tidak ditemukan.' });
   db.orders.splice(i, 1); saveDb(db);
   res.json({ ok: true });
+});
+
+/* ================= BOT TELEGRAM (auth: header x-bot-token) ================= */
+// Cek apakah email pembeli terdaftar & tidak di-suspend
+app.get('/api/bot/user', requireBot, (req, res) => {
+  const em = String(req.query.email || '').trim().toLowerCase();
+  const u = db.users.find((x) => x.email === em);
+  if (!u) return res.json({ ok: true, exists: false });
+  res.json({ ok: true, exists: true, email: u.email, role: u.role, suspended: !!u.suspended });
+});
+// Pool model Sultan dengan status live (untuk picker di bot)
+function poolLive(poolDef) {
+  return poolDef.map(([id, provName]) => {
+    const p = db.providers.find((x) => x.name === provName);
+    const m = p && p.models.find((x) => x.id === id);
+    return { id, alias: (m && m.alias) || id, provider: provName, providerId: p ? p.id : null, active: !!(m && m.active) };
+  });
+}
+app.get('/api/bot/pools', requireBot, (req, res) => {
+  res.json({ ok: true, pools: { mahal: poolLive(SULTAN_MAHAL), mid: poolLive(SULTAN_MID) } });
+});
+// Buat key paket berbayar untuk email pembeli (dipakai bot setelah admin menyetujui pembayaran).
+// Satu key terikat satu provider; pembelian multi-provider menghasilkan beberapa key.
+app.post('/api/bot/keys', requireBot, (req, res) => {
+  const { email, planId, name, modelPicks } = req.body || {};
+  const em = String(email || '').trim().toLowerCase();
+  const u = db.users.find((x) => x.email === em);
+  if (!u) return res.status(400).json({ ok: false, msg: 'Email belum terdaftar di gateway.' });
+  if (u.suspended) return res.status(403).json({ ok: false, msg: 'Akun pembeli di-suspend.' });
+  const plan = getPlan(planId);
+  if (!plan || plan.id === 'free-500k') return res.status(400).json({ ok: false, msg: 'Paket tidak valid untuk bot.' });
+
+  const groups = new Map(); // providerId -> { provider, ids: [] }
+  const addTo = (provId, id) => {
+    if (!groups.has(provId)) groups.set(provId, { provider: db.providers.find((x) => x.id === provId), ids: [] });
+    groups.get(provId).ids.push(id);
+  };
+
+  if (plan.sultan) {
+    const poolDef = plan.pool === 'mid' ? SULTAN_MID : SULTAN_MAHAL;
+    const live = poolLive(poolDef);
+    if (plan.pick > 0) {
+      const picks = Array.isArray(modelPicks) ? modelPicks.map(String) : [];
+      if (picks.length !== plan.pick)
+        return res.status(400).json({ ok: false, msg: 'Paket ' + plan.name + ' harus pilih tepat ' + plan.pick + ' model.' });
+      const poolIds = new Set(poolDef.map(([id]) => id));
+      for (const id of picks) {
+        if (!poolIds.has(id)) return res.status(400).json({ ok: false, msg: 'Model "' + id + '" bukan bagian paket ' + plan.name + '.' });
+        const li = live.find((x) => x.id === id);
+        if (!li || !li.active || !li.providerId)
+          return res.status(400).json({ ok: false, msg: 'Model "' + id + '" sedang tidak aktif.' });
+        addTo(li.providerId, id);
+      }
+    } else {
+      // SULTAN: semua model mahal yang sedang aktif terbuka otomatis
+      const actives = live.filter((x) => x.active && x.providerId);
+      if (!actives.length) return res.status(400).json({ ok: false, msg: 'Tidak ada model Sultan yang aktif.' });
+      for (const li of actives) addTo(li.providerId, li.id);
+    }
+  } else {
+    // Paket biasa: model non-sultan yang aktif, maksimal plan.maxModels, urut provider
+    let count = 0;
+    for (const p of db.providers) {
+      for (const m of p.models) {
+        if (!m.active || SULTAN_IDS.has(m.id)) continue;
+        if (count >= plan.maxModels) break;
+        addTo(p.id, m.id); count++;
+      }
+      if (count >= plan.maxModels) break;
+    }
+    if (!count) return res.status(400).json({ ok: false, msg: 'Tidak ada model aktif untuk paket ini.' });
+  }
+
+  const existing = db.gatewayKeys.filter((k) => k.userId === u.id && k.planId === plan.id && keyActive(k)).length;
+  if (existing + groups.size > (plan.maxKeys || 1))
+    return res.status(400).json({ ok: false, msg: 'Kuota key paket ' + plan.name + ' tidak cukup (' + existing + ' aktif, maks ' + plan.maxKeys + ', butuh ' + groups.size + ' key baru).' });
+
+  const out = [];
+  let n = 0;
+  for (const [, g] of groups) {
+    n++;
+    const keyName = String(name || (plan.name + ' via Bot')).slice(0, 50) + (groups.size > 1 ? ' (' + n + '/' + groups.size + ')' : '');
+    const r = issueGatewayKey({ name: keyName, providerId: g.provider.id, planId: plan.id, modelIds: g.ids, userEmail: em }, req);
+    if (!r.ok) return res.status(400).json({ ok: false, msg: r.msg });
+    out.push({ ...r.data, providerName: g.provider.name, modelIds: g.ids });
+  }
+  res.json({ ok: true, keys: out });
 });
 
 /* ================= OPENAI-COMPATIBLE GATEWAY (/v1) =================
