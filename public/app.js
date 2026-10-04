@@ -376,7 +376,7 @@ $('#btnExportCsv').addEventListener('click', () => {
 async function loadPricing() {
   const { plans, customRatePer1K } = await api('/api/plans');
   CUSTOM_RATE = customRatePer1K;
-  $('#planCards').innerHTML = plans.map((p, i) => `
+  const planCard = (p, i) => `
     <div class="card${i === 2 ? ' glow' : ''}">
       <span class="badge ${p.price > 0 ? 'info' : 'ok'}">${p.name}</span>
       <div class="price" style="margin:8px 0">${fmtRp(p.price)}</div>
@@ -386,6 +386,18 @@ async function loadPricing() {
         <li>${p.maxModels >= 9999 ? 'FULL model' : 's.d. ' + p.maxModels + ' model pilihan'}</li>
       </ul>
       ${p.price > 0 ? `<button class="btn primary big" onclick="buyPlan('${p.id}')">Beli Paket</button>` : ''}
+    </div>`;
+  $('#planCards').innerHTML = plans.filter((p) => !p.sultan).map(planCard).join('');
+  $('#sultanCards').innerHTML = plans.filter((p) => p.sultan).map((p) => `
+    <div class="card glow">
+      <span class="badge info">${p.name}</span>
+      <div class="price" style="margin:8px 0">${fmtRp(p.price)}</div>
+      <ul class="plan-feats">
+        <li>Bonus <b style="color:#fff">${fmtN(p.tokens)}</b> token</li>
+        <li>Aktif <b style="color:#fff">${p.durationDays} hari</b></li>
+        <li>${esc(p.desc.split('•').slice(2).join('•').trim() || p.desc)}</li>
+      </ul>
+      <button class="btn primary big" onclick="buyPlan('${p.id}')">Beli Paket</button>
     </div>`).join('');
   calcCustom();
   const { orders } = await api('/api/orders');
