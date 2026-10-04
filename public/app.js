@@ -135,7 +135,7 @@ async function loadProviders() {
         <span><span class="badge ${p.pingMs ? 'ok' : 'warn'}">${p.pingMs ? p.pingMs + ' ms' : 'belum di-ping'}</span>
         <span class="badge info">${p.activeCount}/${p.models.length} aktif</span></span></div>
       <div class="mono" style="font-size:.72rem;color:var(--muted);margin-bottom:8px">${esc(p.baseUrl)}</div>
-      <div class="model-pick">${p.models.map((m) => `<span class="chip">${esc(m.id)}</span>`).join('')}</div>
+      <div class="model-pick">${p.models.map((m) => `<span class="chip" title="${esc(m.id)}">${esc(m.alias || m.id)}</span>`).join('')}</div>
       <div class="row gap wrap">
         <button class="btn ghost sm" onclick="pingProvider('${p.id}')">📶 Ping</button>
         <button class="btn ghost sm" onclick="go('models')">⚙ Kelola Model</button>
@@ -200,7 +200,7 @@ function renderModelPick() {
   const models = p ? p.models.filter((m) => m.active) : [];
   pickedModels = new Set([...pickedModels].filter((id) => models.some((m) => m.id === id)));
   $('#gkModels').innerHTML = models.map((m) =>
-    `<span class="chip${pickedModels.has(m.id) ? ' on' : ''}${m.free ? ' free' : ''}" data-mid="${esc(m.id)}">${esc(m.id)}</span>`).join('')
+    `<span class="chip${pickedModels.has(m.id) ? ' on' : ''}${m.free ? ' free' : ''}" data-mid="${esc(m.id)}" title="${esc(m.id)}">${esc(m.alias || m.id)}</span>`).join('')
     || '<span class="muted">Pilih provider yang punya model aktif.</span>';
   $$('#gkModels .chip').forEach((c) => c.addEventListener('click', () => {
     const id = c.dataset.mid;
@@ -281,11 +281,15 @@ async function revokeKey(id) {
 }
 
 /* ---------- models ---------- */
+let lastModels = [];
 async function loadModels() {
   const { models } = await api('/api/models');
+  lastModels = models;
   $('#modelCount').textContent = models.filter((m) => m.active).length + ' aktif / ' + models.length + ' total';
   $('#modelTable tbody').innerHTML = models.map((m) => `
-    <tr><td>${esc(m.id)}${m.free ? ' <span class="badge ok">FREE</span>' : ''}</td>
+    <tr><td><b>${esc(m.alias || m.id)}</b>${m.free ? ' <span class="badge ok">FREE</span>' : ''}
+      <button class="mini-btn" data-rename-pid="${m.providerId}" data-rename-mid="${esc(m.id)}" title="Ganti nama tampil">✏️</button><br>
+      <span class="muted" style="font-size:11px">${esc(m.id)}</span></td>
     <td>${esc(m.providerName)}</td>
     <td><input type="checkbox" class="switch" ${m.active ? 'checked' : ''} onchange="toggleModel('${m.providerId}','${esc(m.id)}',this.checked)"></td>
     <td>${m.pingMs ? m.pingMs + ' ms' : '—'}</td>
@@ -293,6 +297,17 @@ async function loadModels() {
     <td>${m.avgPerReq ? fmtN(m.avgPerReq) : '—'}</td></tr>`).join('')
     || '<tr><td colspan="6" class="muted">Belum ada model. Tambah provider dulu.</td></tr>';
 }
+$('#modelTable tbody').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-rename-pid]');
+  if (!b) return;
+  const pid = b.dataset.renamePid, mid = b.dataset.renameMid;
+  const cur = (lastModels.find((m) => m.providerId === pid && m.id === mid) || {}).alias || mid;
+  const name = prompt('Nama tampil untuk model ini (yang dilihat pembeli):', cur);
+  if (!name || !name.trim() || name.trim() === cur) return;
+  const r = await api('/api/providers/' + pid + '/models', { method: 'PATCH', body: JSON.stringify({ modelId: mid, alias: name.trim() }) });
+  if (r.ok) { toast('Nama tampil diganti'); loadModels(); }
+  else toast(r.msg || 'Gagal mengganti nama');
+});
 async function toggleModel(providerId, modelId, active) {
   await api('/api/providers/' + providerId + '/models', { method: 'PATCH', body: JSON.stringify({ modelId, active }) });
   toast(active ? 'Model diaktifkan' : 'Model dinonaktifkan');
