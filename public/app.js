@@ -436,7 +436,7 @@ async function loadPricing() {
         <li>Aktif <b style="color:#fff">${p.durationDays} hari</b></li>
         <li>${p.maxModels >= 9999 ? 'FULL model' : 's.d. ' + p.maxModels + ' model pilihan'}</li>
       </ul>
-      ${p.price > 0 ? `<button class="btn primary big" onclick="buyPlan('${p.id}')">Beli Paket</button>` : ''}
+      ${p.price > 0 ? `<button class="btn primary big" onclick="buyPlan('${p.id}')">Beli Paket</button>` : `<button class="btn primary big" onclick="genFreeKey()">Generate Key Gratis</button>`}
     </div>`;
   $('#planCards').innerHTML = plans.filter((p) => !p.sultan).map(planCard).join('');
   $('#sultanCards').innerHTML = plans.filter((p) => p.sultan).map((p) => `
@@ -533,6 +533,18 @@ async function buyPlan(planId) {
     <p class="muted">${esc(r.payInfo)}</p>
     <button class="btn primary big" onclick="closeModal()">Mengerti!</button>`);
   loadPricing();
+}
+async function genFreeKey() {
+  if (needLogin()) return;
+  if (!confirm('Buat 1 API key gratis?\n700K token • 7 hari • 10 model')) return;
+  try {
+    const r = await api('/api/my-keys/free', { method: 'POST' });
+    openModal(`<h3>${ic('key')} Key Gratis Dibuat</h3>
+      <div class="kv"><span>Base URL</span><b class="mono">${esc(r.baseUrl)}</b></div>
+      <div class="kv"><span>API Key</span><b class="mono">${esc(r.key)}</b></div>
+      <p class="muted">Simpan baik-baik, key penuh hanya tampil sekali di sini. Key juga tersimpan di halaman Key Saya.</p>
+      <button class="btn primary big" onclick="closeModal();go('mykeys')">Lihat Key Saya</button>`);
+  } catch (e) { toast(e.message); }
 }
 $('#btnBuyCustom').addEventListener('click', async () => {
   if (needLogin()) return;
