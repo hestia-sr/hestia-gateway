@@ -202,3 +202,5 @@ canvas{width:100%}
   .link-grid{grid-template-columns:repeat(3,1fr)}
   .page-title{font-size:1.8rem}
 }
+.mini-btn{background:none;border:none;cursor:pointer;font-size:.85rem;padding:2px 4px;opacity:.7}
+.mini-btn:hover{opacity:1;transform:scale(1.15)}
