@@ -128,6 +128,8 @@ const SULTAN_MID = [
   ['grok-imagine-2', 'LikeChat - VYCE (chat)'],
 ];
 
+const SULTAN_IDS = new Set(SULTAN_MAHAL.map(([id]) => id));
+
 /* ---------------- Helper ---------------- */
 function apiBase(baseUrl) {
   let u = String(baseUrl || '').trim().replace(/\/+$/, '');
@@ -345,6 +347,8 @@ app.post('/api/keys', (req, res) => {
   if (!chosen.length) return res.status(400).json({ ok: false, msg: 'Tidak ada model aktif yang dipilih.' });
   if (chosen.length > plan.maxModels)
     return res.status(400).json({ ok: false, msg: 'Paket ' + plan.name + ' maksimal ' + plan.maxModels + ' model.' });
+  if (!plan.sultan && chosen.some((id) => SULTAN_IDS.has(id)))
+    return res.status(400).json({ ok: false, msg: 'Model Sultan hanya untuk paket Sultan.' });
 
   const key = 'hestia-' + crypto.randomBytes(18).toString('base64url');
   const gk = {
