@@ -480,16 +480,17 @@ async function buySultan(planId) {
   let picked = [];
   if (plan.pick > 0) {
     const { models } = await api('/api/public/models');
-    const pool = (sultanPools[plan.pool] || [])
+    const bonusIds = new Set(plan.id === 'sultan-plus2' ? (sultanPools.plus2Bonus || []) : []);
+    const pool = (sultanPools[plan.pool] || []).concat([...bonusIds])
       .map((id) => {
         const m = models.find((x) => x.id === id);
-        return m ? { id, alias: m.alias || id } : null;
+        return m ? { id, alias: m.alias || id, bonus: bonusIds.has(id) } : null;
       })
       .filter(Boolean);
     if (!pool.length) return toast('Model belum tersedia');
     openModal(`<h3>${ic('diamond')} Pilih ${plan.pick} Model — ${esc(plan.name)}</h3>
       <div class="pick-list">${pool.map((x) => `
-        <label class="pick-item"><input type="checkbox" value="${esc(x.id)}"><span><b>${esc(x.alias)}</b><br><small class="muted">Hestia</small></span></label>`).join('')}
+        <label class="pick-item"><input type="checkbox" value="${esc(x.id)}"><span><b>${esc(x.alias)}</b>${x.bonus ? ' <small class="neon">bonus</small>' : ''}<br><small class="muted">Hestia</small></span></label>`).join('')}
       </div>
       <div class="row gap" style="margin-top:14px">
         <button class="btn ghost big" style="flex:1" onclick="closeModal()">Batal</button>
