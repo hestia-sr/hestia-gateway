@@ -427,24 +427,14 @@ $('#btnBuyCustom').addEventListener('click', async () => {
 /* ---------- etalase ---------- */
 const ETALASE = [
   { tier: 'Text', icon: 'chat', desc: 'Chat, coding, reasoning & analisis', items: [
+    ['openai/gpt-6-astra', 'LikeChat - Odyssey'],
+    ['openai/gpt-6-sol', 'LikeChat - Odyssey'],
+    ['openai/gpt-5.6-sol', 'LikeChat - Odyssey'],
     ['claude-opus-5.5', 'LikeChat - TNT'],
     ['claude-opus-5', 'LikeChat - TNT'],
-    ['claude-sonnet-4-6', 'LikeChat - VYCE (chat)'],
     ['gpt-6.1-sol', 'LikeChat - TNT'],
     ['gpt-5.5-xhigh', 'LikeChat - TNT'],
     ['gpt-5.5', 'LikeChat - TNT'],
-    ['DeepSeek-V4-Pro', 'LikeChat - hcnsec (chat)'],
-    ['DeepSeek-V4.1-Flash', 'LikeChat - hcnsec (chat)'],
-    ['glm-5.3', 'LikeChat - hcnsec (chat)'],
-    ['kimi-k3', 'LikeChat - hcnsec (chat)'],
-    ['openai/gpt-oss-120b', 'LikeChat - HyperFusion (file/gambar)'],
-    ['deepseek-ai/DeepSeek-V4-Flash-0731', 'LikeChat - HyperFusion (file/gambar)'],
-  ]},
-  { tier: 'text2img', icon: 'palette', desc: 'Buat gambar dari teks', items: [
-    ['grok-imagine-2', 'LikeChat - VYCE (chat)'],
-  ]},
-  { tier: 'img2img', icon: 'image', desc: 'Edit gambar', items: [
-    ['step-image-edit-2', 'LikeChat - hcnsec (chat)'],
   ]},
 ];
 async function loadEtalase() {
