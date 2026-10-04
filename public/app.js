@@ -3,14 +3,14 @@ const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 
 const NAV = [
-  { id: 'dashboard', label: 'Dashboard', ic: '🏠' },
-  { id: 'provider', label: 'Provider', ic: '🔑' },
-  { id: 'keys', label: 'API Key', ic: '⚡' },
-  { id: 'models', label: 'Model', ic: '🤖' },
-  { id: 'usage', label: 'Riwayat', ic: '📜' },
-  { id: 'pricing', label: 'Harga', ic: '💎' },
-  { id: 'etalase', label: 'Etalase', ic: '🛍️' },
-  { id: 'links', label: 'Tautan', ic: '🔗' },
+  { id: 'dashboard', label: 'Dashboard', ic: 'home' },
+  { id: 'provider', label: 'Provider', ic: 'key' },
+  { id: 'keys', label: 'API Key', ic: 'zap' },
+  { id: 'models', label: 'Model', ic: 'bot' },
+  { id: 'usage', label: 'Riwayat', ic: 'history' },
+  { id: 'pricing', label: 'Harga', ic: 'diamond' },
+  { id: 'etalase', label: 'Etalase', ic: 'bag' },
+  { id: 'links', label: 'Tautan', ic: 'link' },
 ];
 let PLANS = [], CUSTOM_RATE = 10, PROVIDERS = [];
 let validatedModels = null; // hasil validasi BYOK (siap simpan)
@@ -43,11 +43,39 @@ const fmtN = (n) => Number(n || 0).toLocaleString('id-ID');
 const fmtRp = (n) => 'Rp' + Number(n || 0).toLocaleString('id-ID');
 const fmtDate = (ts) => new Date(ts).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+/* ---------- ikon SVG (tanpa emoji) ---------- */
+const ICONS = {
+  home: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',
+  key: '<circle cx="8" cy="16" r="4.5"/><path d="M11.2 12.8L21 3m-4 1l3 3m-6 0l2.5 2.5"/>',
+  zap: '<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>',
+  bot: '<rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M8 4h8"/><circle cx="9" cy="14" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="14" r="1.2" fill="currentColor" stroke="none"/>',
+  history: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
+  diamond: '<path d="M6 3h12l4 6-10 12L2 9l4-6z"/><path d="M2 9h20M9 3l3 6 3-6"/>',
+  bag: '<path d="M6 7h15l1 14H5L6 7z"/><path d="M9 10V7a3 3 0 0 1 6 0v3"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  check: '<path d="M20 6L9 17l-5-5"/>',
+  x: '<path d="M18 6L6 18M6 6l12 12"/>',
+  star: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/>',
+  signal: '<path d="M5 20v-6M10 20V10M15 20v-8M20 20V4"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  trash: '<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>',
+  eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  pencil: '<path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/>',
+  receipt: '<path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6"/>',
+  chat: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/>',
+  palette: '<circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="7.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15.5" cy="10.5" r="1.2" fill="currentColor" stroke="none"/><path d="M12 21a9 9 0 1 1 9-9c0 2.5-2 3.5-3.5 3.5h-2a2 2 0 0 0-1.4 3.4c.6.7.4 2.1-2.1 2.1z"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+  calc: '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h.01M12 19h.01M16 19h.01"/>',
+  save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/>',
+};
+const ic = (n) => `<svg class="icsvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 
 /* ---------- navigation ---------- */
 function buildNav() {
-  $('#sideNav').innerHTML = NAV.map((n) => `<button data-nav="${n.id}"><span class="ic">${n.ic}</span>${n.label}</button>`).join('');
-  $('#bottomNav').innerHTML = NAV.map((n) => `<button data-nav="${n.id}"><span class="ic">${n.ic}</span>${n.label}</button>`).join('');
+  $('#sideNav').innerHTML = NAV.map((n) => `<button data-nav="${n.id}"><span class="ic">${ic(n.ic)}</span>${n.label}</button>`).join('');
+  $('#bottomNav').innerHTML = NAV.map((n) => `<button data-nav="${n.id}"><span class="ic">${ic(n.ic)}</span>${n.label}</button>`).join('');
   $$('[data-nav]').forEach((b) => b.addEventListener('click', () => go(b.dataset.nav)));
 }
 function go(id) {
@@ -109,9 +137,9 @@ $('#btnValidate').addEventListener('click', async () => {
     validatedModels = r.models;
     const box = $('#pvResult'); box.classList.remove('hidden');
     box.innerHTML = `
-      <p>✅ <b>${r.models.length} model</b> ditemukan di key ini <span class="muted">(${r.latencyMs} ms • ${esc(r.base)})</span></p>
+      <p>${ic('check')} <b>${r.models.length} model</b> ditemukan di key ini <span class="muted">(${r.latencyMs} ms • ${esc(r.base)})</span></p>
       <div class="model-pick">${r.models.map((m) => `<span class="chip on${m.free ? ' free' : ''}">${esc(m.id)}</span>`).join('')}</div>
-      <button class="btn primary" id="btnSavePv">💾 Simpan Provider</button>`;
+      <button class="btn primary" id="btnSavePv">${ic('save')} Simpan Provider</button>`;
     $('#btnSavePv').addEventListener('click', async () => {
       try {
         await api('/api/providers', { method: 'POST', body: JSON.stringify({ name, baseUrl, apiKey, models: validatedModels }) });
@@ -122,7 +150,7 @@ $('#btnValidate').addEventListener('click', async () => {
       } catch (e) { toast(e.message); }
     });
     toast('Key valid! Model-model muncul di bawah');
-  } catch (e) { toast('❌ ' + e.message); }
+  } catch (e) { toast(ic('x') + ' ' + e.message); }
   btn.disabled = false; btn.textContent = 'Validasi & Lihat Model';
 });
 
@@ -131,15 +159,15 @@ async function loadProviders() {
   PROVIDERS = providers;
   $('#providerList').innerHTML = providers.map((p) => `
     <div class="card">
-      <div class="card-head"><h3>${esc(p.name)} ${p.official ? '<span class="badge info">🌟 RESMI</span>' : ''}</h3>
+      <div class="card-head"><h3>${esc(p.name)} ${p.official ? '<span class="badge info">' + ic('star') + ' RESMI</span>' : ''}</h3>
         <span><span class="badge ${p.pingMs ? 'ok' : 'warn'}">${p.pingMs ? p.pingMs + ' ms' : 'belum di-ping'}</span>
         <span class="badge info">${p.activeCount}/${p.models.length} aktif</span></span></div>
       <div class="mono" style="font-size:.72rem;color:var(--muted);margin-bottom:8px">${esc(p.baseUrl)}</div>
       <div class="model-pick">${p.models.map((m) => `<span class="chip" title="${esc(m.id)}">${esc(m.alias || m.id)}</span>`).join('')}</div>
       <div class="row gap wrap">
-        <button class="btn ghost sm" onclick="pingProvider('${p.id}')">📶 Ping</button>
-        <button class="btn ghost sm" onclick="go('models')">⚙ Kelola Model</button>
-        <button class="btn danger sm" onclick="delProvider('${p.id}')">🗑 Hapus</button>
+        <button class="btn ghost sm" onclick="pingProvider('${p.id}')">${ic('signal')} Ping</button>
+        <button class="btn ghost sm" onclick="go('models')">${ic('gear')} Kelola Model</button>
+        <button class="btn danger sm" onclick="delProvider('${p.id}')">${ic('trash')} Hapus</button>
       </div>
     </div>`).join('') || '<p class="muted">Belum ada provider. Tambahkan di atas ya.</p>';
 }
@@ -161,8 +189,8 @@ async function delProvider(id) {
 /* ---------- gateway keys ---------- */
 let keyTab = 'hestia'; // 'hestia' = provider resmi Hestia | 'byok' = provider titipan user
 const KEY_DESCS = {
-  hestia: '🌟 <b>Key Hestia</b>: pakai model-model resmi milik Hestia. Token kepotong dari kuota Hestia — beli paketnya di halaman Harga.',
-  byok: '🔑 <b>Key Sendiri (BYOK)</b>: pakai API key & Base URL milikmu sendiri. Token kepotong dari key-mu, bukan dari Hestia.',
+  hestia: ic('star') + ' <b>Key Hestia</b>: pakai model-model resmi milik Hestia. Token kepotong dari kuota Hestia — beli paketnya di halaman Harga.',
+  byok: ic('key') + ' <b>Key Sendiri (BYOK)</b>: pakai API key & Base URL milikmu sendiri. Token kepotong dari key-mu, bukan dari Hestia.',
 };
 function setKeyTab(t) {
   keyTab = t;
@@ -223,19 +251,19 @@ $('#btnCreateKey').addEventListener('click', async () => {
       body: JSON.stringify({ name, providerId, planId, modelIds: [...pickedModels], keyType: keyTab }),
     });
     openModal(`
-      <h3>🎉 API Key Berhasil Dibuat!</h3>
+      <h3>${ic('check')} API Key Berhasil Dibuat!</h3>
       <p class="muted">Salin & simpan baik-baik — key tampil penuh <b>hanya sekali ini</b>.</p>
       <label>API Key</label><div class="codebox" id="mKey">${esc(r.key)}</div>
-      <button class="btn primary sm" onclick="copyText(document.getElementById('mKey').textContent,'API key disalin!')">📋 Salin API Key</button>
+      <button class="btn primary sm" onclick="copyText(document.getElementById('mKey').textContent,'API key disalin!')">${ic('copy')} Salin API Key</button>
       <label style="margin-top:12px">Base URL (untuk agent lain)</label><div class="codebox" id="mBase">${esc(r.baseUrl)}</div>
-      <button class="btn ghost sm" onclick="copyText(document.getElementById('mBase').textContent,'Base URL disalin!')">📋 Salin Base URL</button>
+      <button class="btn ghost sm" onclick="copyText(document.getElementById('mBase').textContent,'Base URL disalin!')">${ic('copy')} Salin Base URL</button>
       <label style="margin-top:12px">Contoh pasang di agent (SillyTavern / Cherry Studio / dll)</label>
       <div class="codebox">Base URL : ${esc(r.baseUrl)}\nAPI Key  : ${esc(r.key)}\nHeader   : Authorization: Bearer ${esc(r.key)}</div>
       <p class="muted">Masa aktif sampai ${fmtDate(r.expiresAt)} • kuota ${fmtN(r.tokenLimit)} token • ${r.modelCount} model</p>
       <button class="btn primary big" onclick="closeModal()">Mengerti!</button>`);
     $('#gkName').value = '';
     loadKeyForm();
-  } catch (e) { toast('❌ ' + e.message); }
+  } catch (e) { toast(ic('x') + ' ' + e.message); }
 });
 async function loadKeyList() {
   const { keys } = await api('/api/keys');
@@ -245,7 +273,7 @@ async function loadKeyList() {
   $('#keyList').innerHTML = keys.map((k) => {
     const pct = k.tokenLimit ? Math.min(100, Math.round((k.tokensUsed / k.tokenLimit) * 100)) : 0;
     const st = k.revoked ? '<span class="badge off">DICABUT</span>' : k.expired ? '<span class="badge warn">KEDALUWARSA</span>' : '<span class="badge ok">AKTIF</span>';
-    const kt = k.keyType === 'hestia' ? '<span class="badge info">🌟 HESTIA</span>' : '<span class="badge ok">🔑 BYOK</span>';
+    const kt = k.keyType === 'hestia' ? '<span class="badge info">' + ic('star') + ' HESTIA</span>' : '<span class="badge ok">' + ic('key') + ' BYOK</span>';
     return `<div class="key-card">
       <div class="card-head"><h3>${esc(k.name)}</h3><span class="row gap">${kt}${st}</span></div>
       <div class="keyline">${esc(k.masked)}</div>
@@ -258,7 +286,7 @@ async function loadKeyList() {
       <div class="kv"><span>Model</span><b>${k.modelCount} model</b></div>
       <div class="kv"><span>Berlaku s/d</span><b>${k.expiresAt ? fmtDate(k.expiresAt) : '—'}</b></div>
       <div class="row gap wrap" style="margin-top:10px">
-        <button class="btn ghost sm" onclick="revealKey('${k.id}')">👁 Lihat & Salin</button>
+        <button class="btn ghost sm" onclick="revealKey('${k.id}')">${ic('eye')} Lihat & Salin</button>
         ${k.revoked ? '' : `<button class="btn danger sm" onclick="revokeKey('${k.id}')">Cabut Key</button>`}
       </div></div>`;
   }).join('') || '<p class="muted">Belum ada key. Buat di atas ya.</p>';
@@ -267,7 +295,7 @@ async function revealKey(id) {
   const r = await api('/api/keys/' + id + '/reveal');
   openModal(`<h3>Detail Key</h3>
     <label>API Key</label><div class="codebox" id="rk">${esc(r.key)}</div>
-    <button class="btn primary sm" onclick="copyText(document.getElementById('rk').textContent,'API key disalin!')">📋 Salin API Key</button>
+    <button class="btn primary sm" onclick="copyText(document.getElementById('rk').textContent,'API key disalin!')">${ic('copy')} Salin API Key</button>
     <label style="margin-top:10px">Base URL</label><div class="codebox">${esc(r.baseUrl)}</div>
     <button class="btn ghost sm" onclick="closeModal()" style="margin-top:12px">Tutup</button>`);
 }
@@ -288,7 +316,7 @@ async function loadModels() {
   $('#modelCount').textContent = models.filter((m) => m.active).length + ' aktif / ' + models.length + ' total';
   $('#modelTable tbody').innerHTML = models.map((m) => `
     <tr><td><b>${esc(m.alias || m.id)}</b>${m.free ? ' <span class="badge ok">FREE</span>' : ''}
-      <button class="mini-btn" data-rename-pid="${m.providerId}" data-rename-mid="${esc(m.id)}" title="Ganti nama tampil">✏️</button><br>
+      <button class="mini-btn" data-rename-pid="${m.providerId}" data-rename-mid="${esc(m.id)}" title="Ganti nama tampil">${ic('pencil')}</button><br>
       <span class="muted" style="font-size:11px">${esc(m.id)}</span></td>
     <td>${esc(m.providerName)}</td>
     <td><input type="checkbox" class="switch" ${m.active ? 'checked' : ''} onchange="toggleModel('${m.providerId}','${esc(m.id)}',this.checked)"></td>
@@ -371,7 +399,7 @@ $('#customTokens').addEventListener('input', calcCustom);
 async function buyPlan(planId) {
   const name = prompt('Nama pembeli:', '') || 'Tanpa Nama';
   const r = await api('/api/orders', { method: 'POST', body: JSON.stringify({ planId, name }) });
-  openModal(`<h3>🧾 Order Dibuat</h3>
+  openModal(`<h3>${ic('receipt')} Order Dibuat</h3>
     <div class="kv"><span>ID Order</span><b class="mono">${r.order.id}</b></div>
     <div class="kv"><span>Paket</span><b>${esc(r.order.label)}</b></div>
     <div class="kv"><span>Total</span><b class="neon">${fmtRp(r.order.price)}</b></div>
@@ -384,7 +412,7 @@ $('#btnBuyCustom').addEventListener('click', async () => {
   if (customTokens < 1000) return toast('Minimal 1000 token');
   const name = $('#buyerName').value.trim() || 'Tanpa Nama';
   const r = await api('/api/orders', { method: 'POST', body: JSON.stringify({ customTokens, name }) });
-  openModal(`<h3>🧾 Order Dibuat</h3>
+  openModal(`<h3>${ic('receipt')} Order Dibuat</h3>
     <div class="kv"><span>ID Order</span><b class="mono">${r.order.id}</b></div>
     <div class="kv"><span>Token</span><b>${fmtN(r.order.tokens)}</b></div>
     <div class="kv"><span>Total</span><b class="neon">${fmtRp(r.order.price)}</b></div>
@@ -395,7 +423,7 @@ $('#btnBuyCustom').addEventListener('click', async () => {
 
 /* ---------- etalase ---------- */
 const ETALASE = [
-  { tier: 'Text', icon: '💬', desc: 'Chat, coding, reasoning & analisis', items: [
+  { tier: 'Text', icon: 'chat', desc: 'Chat, coding, reasoning & analisis', items: [
     ['claude-opus-5.5', 'LikeChat - TNT'],
     ['claude-opus-5', 'LikeChat - TNT'],
     ['claude-sonnet-4-6', 'LikeChat - VYCE (chat)'],
@@ -409,10 +437,10 @@ const ETALASE = [
     ['openai/gpt-oss-120b', 'LikeChat - HyperFusion (file/gambar)'],
     ['deepseek-ai/DeepSeek-V4-Flash-0731', 'LikeChat - HyperFusion (file/gambar)'],
   ]},
-  { tier: 'text2img', icon: '🎨', desc: 'Buat gambar dari teks', items: [
+  { tier: 'text2img', icon: 'palette', desc: 'Buat gambar dari teks', items: [
     ['grok-imagine-2', 'LikeChat - VYCE (chat)'],
   ]},
-  { tier: 'img2img', icon: '🖼️', desc: 'Edit gambar', items: [
+  { tier: 'img2img', icon: 'image', desc: 'Edit gambar', items: [
     ['step-image-edit-2', 'LikeChat - hcnsec (chat)'],
   ]},
 ];
@@ -421,7 +449,7 @@ async function loadEtalase() {
   const byKey = {};
   models.forEach((m) => (byKey[m.id + '|' + m.providerName] = m));
   $('#etalaseTiers').innerHTML = ETALASE.map((t) => `
-    <div class="card"><div class="card-head"><h3>${t.icon} ${t.tier}</h3><span class="muted">${t.desc}</span></div>
+    <div class="card"><div class="card-head"><h3>${ic(t.icon)} ${t.tier}</h3><span class="muted">${t.desc}</span></div>
     <div class="link-grid">${t.items.map(([id, prov]) => {
       const m = byKey[id + '|' + prov];
       const live = !!(m && m.active);
