@@ -13,6 +13,7 @@ const NAV = [
   { id: 'links', label: 'Tautan', ic: 'link' },
 ];
 let PLANS = [], CUSTOM_RATE = 10, PROVIDERS = [];
+let SULTAN_IDS = new Set();
 let validatedModels = null; // hasil validasi BYOK (siap simpan)
 let pickedModels = new Set(); // model terpilih utk key baru
 
@@ -69,6 +70,7 @@ const ICONS = {
   download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
   calc: '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h.01M12 19h.01M16 19h.01"/>',
   save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/>',
+  lock: '<rect x=\"4\" y=\"11\" width=\"16\" height=\"10\" rx=\"2\"/><path d=\"M8 11V7a4 4 0 0 1 8 0v4\"/>',
 };
 const ic = (n) => `<svg class="icsvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 
@@ -206,8 +208,9 @@ function setKeyTab(t) {
   renderModelPick();
 }
 async function loadKeyForm() {
-  const { plans } = await api('/api/plans');
+  const { plans, sultanPools } = await api('/api/plans');
   PLANS = plans;
+  SULTAN_IDS = new Set(((sultanPools && sultanPools.mahal) || []).map(([id]) => id));
   const { providers } = await api('/api/providers');
   PROVIDERS = providers;
   $('#gkPlan').innerHTML = plans.map((p) =>
@@ -229,12 +232,16 @@ function renderModelPick() {
   const p = PROVIDERS.find((x) => x.id === $('#gkProvider').value);
   const plan = PLANS.find((x) => x.id === $('#gkPlan').value);
   const models = p ? p.models.filter((m) => m.active) : [];
+  const sultanLock = !(plan && plan.sultan);
   pickedModels = new Set([...pickedModels].filter((id) => models.some((m) => m.id === id)));
-  $('#gkModels').innerHTML = models.map((m) =>
-    `<span class="chip${pickedModels.has(m.id) ? ' on' : ''}${m.free ? ' free' : ''}" data-mid="${esc(m.id)}" title="${esc(m.id)}">${esc(m.alias || m.id)}</span>`).join('')
+  $('#gkModels').innerHTML = models.map((m) => {
+    const locked = sultanLock && SULTAN_IDS.has(m.id);
+    return `<span class="chip${pickedModels.has(m.id) ? ' on' : ''}${m.free ? ' free' : ''}${locked ? ' locked' : ''}" data-mid="${esc(m.id)}" title="${esc(m.id)}${locked ? ' — Model Sultan' : ''}">${locked ? ic('lock') : ''}${esc(m.alias || m.id)}</span>`;
+  }).join('')
     || '<span class="muted">Pilih provider yang punya model aktif.</span>';
   $$('#gkModels .chip').forEach((c) => c.addEventListener('click', () => {
     const id = c.dataset.mid;
+    if (c.classList.contains('locked')) return toast('Model Sultan hanya untuk paket Sultan');
     if (pickedModels.has(id)) pickedModels.delete(id);
     else {
       if (plan && pickedModels.size >= plan.maxModels) return toast('Paket ini maksimal ' + plan.maxModels + ' model');
