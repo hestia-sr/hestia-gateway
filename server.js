@@ -339,16 +339,16 @@ app.get('/api/public/models', (req, res) => {
 /* Katalog model per paket (PUBLIK, untuk halaman "Model AI") — hanya data non-sensitif:
    id, alias, status aktif live, nama paket, harga. Tanpa nama provider internal / secret. */
 app.get('/api/public/catalog', (req, res) => {
-  const strip = (m) => ({ id: m.id, alias: m.alias || m.id, active: !!m.active });
+  const strip = (m) => ({ id: m.id, alias: m.alias || m.id, active: !!m.active, context: m.context || 0, pingMs: m.pingMs || 0 });
   const packages = [];
   // FREE: 10 model paket gratis, status live dari provider hcnsec
   const freeProv = db.providers.find((p) => p.name === FREE_PROVIDER_NAME);
   packages.push({
-    id: 'free-500k', name: 'FREE', price: 0,
+    id: 'free-500k', name: 'FREE', price: 0, tokens: 700000,
     note: 'Paket gratis — daftar via web untuk generate key.',
     models: FREE_MODEL_IDS.map((id) => {
       const m = freeProv && freeProv.models.find((x) => x.id === id);
-      return strip({ id, alias: (m && m.alias) || id, active: !!(m && m.active) });
+      return strip({ id, alias: (m && m.alias) || id, active: !!(m && m.active), context: (m && m.context) || 0, pingMs: (m && m.pingMs) || 0 });
     }),
   });
   // BASIC / MEMBER / VIP: replika PERSIS logika auto-assign (provider berurutan, aktif, bukan sultan, maks maxModels)
@@ -370,24 +370,24 @@ app.get('/api/public/catalog', (req, res) => {
       }
       if (count >= plan.maxModels) break;
     }
-    packages.push({ id: plan.id, name: plan.name, price: plan.price, note: planNotes[pid], models });
+    packages.push({ id: plan.id, name: plan.name, price: plan.price, tokens: plan.tokens, note: planNotes[pid], models });
   }
   // SULTAN: semua model mahal live
   packages.push({
-    id: 'sultan', name: 'SULTAN', price: 350000,
+    id: 'sultan', name: 'SULTAN', price: 350000, tokens: 1500000,
     note: 'Semua 8 model mahal terbuka otomatis.',
     models: poolLive(SULTAN_MAHAL).map(strip),
   });
   // SULTAN+: pilih 3 dari 8 model mahal
   packages.push({
-    id: 'sultan-plus', name: 'SULTAN+', price: 150000,
+    id: 'sultan-plus', name: 'SULTAN+', price: 150000, tokens: 1000000,
     note: 'Pilih 3 dari 8 model mahal.',
     models: poolLive(SULTAN_MAHAL).map(strip),
   });
   // SULTAN++: 8 model menengah + bonus, live
   const bonusIds = new Set(SULTAN_PLUS2_BONUS.map(([bid]) => bid));
   packages.push({
-    id: 'sultan-plus2', name: 'SULTAN++', price: 100000,
+    id: 'sultan-plus2', name: 'SULTAN++', price: 100000, tokens: 1000000,
     note: 'Pilih 5 model menengah + bonus.',
     models: poolLive(SULTAN_MID.concat(SULTAN_PLUS2_BONUS)).map((m) => {
       const s = strip(m);
@@ -806,7 +806,7 @@ function poolLive(poolDef) {
   return poolDef.map(([id, provName]) => {
     const p = db.providers.find((x) => x.name === provName);
     const m = p && p.models.find((x) => x.id === id);
-    return { id, alias: (m && m.alias) || id, provider: provName, providerId: p ? p.id : null, active: !!(m && m.active) };
+    return { id, alias: (m && m.alias) || id, provider: provName, providerId: p ? p.id : null, active: !!(m && m.active), context: (m && m.context) || 0, pingMs: (m && m.pingMs) || 0 };
   });
 }
 app.get('/api/bot/pools', requireBot, (req, res) => {
