@@ -454,6 +454,12 @@ app.post('/api/orders', (req, res) => {
   });
 });
 app.get('/api/orders', (req, res) => res.json({ orders: db.orders.slice(0, 100) }));
+app.delete('/api/orders/:id', (req, res) => {
+  const i = db.orders.findIndex((o) => o.id === req.params.id);
+  if (i < 0) return res.status(404).json({ ok: false, msg: 'Order tidak ditemukan.' });
+  db.orders.splice(i, 1); saveDb(db);
+  res.json({ ok: true });
+});
 
 /* ================= OPENAI-COMPATIBLE GATEWAY (/v1) =================
  * Key hestia-xxxx dipakai di agent mana pun yang mendukung custom endpoint:
