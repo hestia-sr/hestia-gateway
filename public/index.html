@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Hestia Gateway — AI API Key Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="bg-glow"></div>
+
+<!-- TOPBAR (mobile) -->
+<header class="topbar">
+  <div class="brand"><span class="logo-dot"></span><b>Hestia</b><span class="brand-sub">GATEWAY</span></div>
+  <button class="icon-btn" id="btnRefresh" title="Muat ulang data">⟳</button>
+</header>
+
+<!-- SIDEBAR (desktop) -->
+<aside class="sidebar">
+  <div class="brand"><span class="logo-dot"></span><b>Hestia</b><span class="brand-sub">GATEWAY</span></div>
+  <nav id="sideNav"></nav>
+  <div class="side-foot">
+    <div class="plan-pill" id="sidePlan">—</div>
+    <small>v1.0 • SR Produksi</small>
+  </div>
+</aside>
+
+<main class="main">
+  <!-- DASHBOARD -->
+  <section class="page" id="page-dashboard">
+    <h1 class="page-title">Dashboard <span class="live-dot"></span></h1>
+    <p class="page-sub">Ringkasan gateway kamu secara real-time.</p>
+    <div class="cards" id="statCards"></div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><h3>Pemakaian 7 Hari Terakhir</h3><button class="btn ghost sm" data-nav="usage">Lihat Riwayat</button></div>
+        <canvas id="chart7" height="180"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Aktivitas Terakhir</h3><button class="btn ghost sm" data-nav="usage">Semua</button></div>
+        <div id="recentList" class="list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROVIDER / BYOK -->
+  <section class="page hidden" id="page-provider">
+    <h1 class="page-title">Provider & API Key</h1>
+    <p class="page-sub">Masukkan <b>Base URL</b> + <b>API Key</b> dari web lain — gateway akan membaca <b>model-model yang support</b> di key tersebut.</p>
+    <div class="card">
+      <h3>＋ Tambah Provider (BYOK)</h3>
+      <div class="form-grid">
+        <label>Nama Provider<input id="pvName" placeholder="cth: Groq Saya / OpenRouter"></label>
+        <label>Base URL<input id="pvBase" placeholder="https://api.groq.com/openai/v1  atau  https://openrouter.ai/api/v1"></label>
+        <label>API Key<input id="pvKey" type="password" placeholder="sk-... / gsk-..."></label>
+      </div>
+      <div class="row gap">
+        <button class="btn primary" id="btnValidate">Validasi & Lihat Model</button>
+        <button class="btn ghost" id="btnToggleKey">👁 Tampilkan Key</button>
+      </div>
+      <div id="pvResult" class="pv-result hidden"></div>
+    </div>
+    <div id="providerList" class="stack"></div>
+  </section>
+
+  <!-- GATEWAY KEYS -->
+  <section class="page hidden" id="page-keys">
+    <h1 class="page-title">API Key Gateway</h1>
+    <p class="page-sub">Generate key <code class="mono">hestia-xxxx</code> + Base URL web ini — pakai di agent favorit / web lain.</p>
+    <div class="card glow">
+      <h3>⚡ Buat API Key Baru</h3>
+      <div class="form-grid">
+        <label>Nama Key<input id="gkName" placeholder="cth: Key SillyTavern"></label>
+        <label>Provider<select id="gkProvider"></select></label>
+        <label>Paket<select id="gkPlan"></select></label>
+      </div>
+      <div id="gkModels" class="model-pick"></div>
+      <button class="btn primary big" id="btnCreateKey">Generate hestia-xxxx</button>
+    </div>
+    <div id="keyList" class="stack"></div>
+  </section>
+
+  <!-- MODELS -->
+  <section class="page hidden" id="page-models">
+    <h1 class="page-title">Info Model</h1>
+    <p class="page-sub">Status aktif / nonaktif, ping, jumlah konteks, dan rata-rata token per request.</p>
+    <div class="row gap wrap" style="margin-bottom:12px">
+      <button class="btn ghost sm" id="btnPingAll">📶 Ping Semua Provider</button>
+      <span class="muted" id="modelCount"></span>
+    </div>
+    <div class="card table-wrap"><table class="tbl" id="modelTable">
+      <thead><tr><th>Model</th><th>Provider</th><th>Status</th><th>Ping</th><th>Konteks</th><th>Token/Req</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <!-- USAGE -->
+  <section class="page hidden" id="page-usage">
+    <h1 class="page-title">Riwayat Pemakaian</h1>
+    <p class="page-sub">Setiap request yang lewat gateway tercatat di sini.</p>
+    <div class="row gap wrap" style="margin-bottom:12px">
+      <select id="usageFilter" class="sel"><option value="">Semua Key</option></select>
+      <button class="btn ghost sm" id="btnExportCsv">⬇ Export CSV</button>
+    </div>
+    <div class="card table-wrap"><table class="tbl" id="usageTable">
+      <thead><tr><th>Waktu</th><th>Key</th><th>Model</th><th>In</th><th>Out</th><th>Total</th><th>Status</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <!-- PRICING -->
+  <section class="page hidden" id="page-pricing">
+    <h1 class="page-title">Harga Token</h1>
+    <p class="page-sub">Pilih paket, atau beli token custom tanpa batas jumlah.</p>
+    <div class="cards" id="planCards" style="grid-template-columns:repeat(auto-fit,minmax(230px,1fr))"></div>
+    <div class="card">
+      <h3>🧮 Kalkulator Token Custom <span class="badge">tanpa batas</span></h3>
+      <div class="form-grid">
+        <label>Jumlah Token<input id="customTokens" type="number" min="1000" step="1000" value="500000"></label>
+        <label>Nama Pembeli<input id="buyerName" placeholder="Nama kamu"></label>
+      </div>
+      <div class="price-line">Harga: <b id="customPrice" class="neon">Rp5.000</b> <span class="muted">(@Rp10 / 1K token)</span></div>
+      <button class="btn primary" id="btnBuyCustom">Beli Token Custom</button>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3>Order Saya</h3></div>
+      <div id="orderList" class="list"></div>
+    </div>
+  </section>
+
+  <!-- LINKS -->
+  <section class="page hidden" id="page-links">
+    <h1 class="page-title">Tautan Provider</h1>
+    <p class="page-sub">Ambil API key gratis / berbayar dari provider resmi, lalu tempel ke halaman Provider.</p>
+    <div class="link-grid" id="linkGrid"></div>
+  </section>
+</main>
+
+<!-- BOTTOM NAV (mobile) -->
+<nav class="bottomnav" id="bottomNav"></nav>
+
+<!-- MODAL -->
+<div class="modal-back hidden" id="modalBack">
+  <div class="modal" id="modalBox"></div>
+</div>
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
