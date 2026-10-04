@@ -17,6 +17,7 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,7 +29,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 /* ---------------- Database (JSON file) ---------------- */
 function defaultDb() {
-  return { providers: [], gatewayKeys: [], usage: [], orders: [], seq: 1 };
+  return { providers: [], gatewayKeys: [], usage: [], orders: [], users: [], sessions: [], seq: 1 };
 }
 function loadDb() {
   try {
@@ -64,6 +65,9 @@ function loadDb() {
       assignAliases(p.models);
       if (JSON.stringify((p.models || []).map((m) => m.alias)) !== before) dirty = true;
     }
+    // Migrasi: tabel auth
+    if (!Array.isArray(d.users)) { d.users = []; dirty = true; }
+    if (!Array.isArray(d.sessions)) { d.sessions = []; dirty = true; }
     if (dirty) fs.writeFileSync(DB_FILE, JSON.stringify(d, null, 2));
     return d;
   } catch (e) {
@@ -130,7 +134,168 @@ const SULTAN_MID = [
 
 const SULTAN_IDS = new Set(SULTAN_MAHAL.map(([id]) => id));
 
-/* ---------------- Helper ---------------- */
+/* ================= AUTH (email + sandi, khusus Gmail) ================= */
+const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+const MAX_PER_DEVICE = 3; // maks akun per device, selebihnya auto-suspend
+const SESSION_DAYS = 30;
+const BLOCKED_DOMAINS = new Set(['hotmail.com', 'hotmail.co.id', 'outlook.com', 'outlook.co.id', 'live.com', 'live.co.id', 'msn.com']);
+const TEMP_DOMAINS = new Set(('tempmail.com temp-mail.org guerrillamail.com guerrillamail.org 10minutemail.com 10minutemail.net ' +
+  'mailinator.com yopmail.com yopmail.fr trashmail.com throwawaymail.com getnada.com mohmal.com emailondeck.com ' +
+  'tempail.com fakemail.net dispostable.com maildrop.cc harakirimail.com anonbox.net burnermail.io crazymailing.com ' +
+  'dashmail.io dropmail.me fakeinbox.com incognitomail.org spamgourmet.com tmpmail.org deadaddress.com moakt.com ' +
+  'tempmailo.com mailnesia.com mintemail.com sharklasers.com spambog.com teleworm.us veryrealemail.com ' +
+  'e4ward.com mailnull.com spambox.us mytrashmail.com pookmail.com sogetthis.com zippymail.info').split(' '));
+function emailCheck(email) {
+  const m = String(email || '').trim().toLowerCase().match(/^([^\s@]+)@([^\s@]+\.[^\s@]+)$/);
+  if (!m) return { ok: false, msg: 'Format email tidak valid.' };
+  const d = m[2];
+  if (BLOCKED_DOMAINS.has(d)) return { ok: false, msg: 'Hotmail/Outlook diblokir. Pakai Gmail ya.' };
+  if (TEMP_DOMAINS.has(d)) return { ok: false, msg: 'Email sementara diblokir.' };
+  if (d !== 'gmail.com') return { ok: false, msg: 'Hanya Gmail yang bisa daftar.' };
+  return { ok: true, email: m[1] + '@' + d };
+}
+function newSession(userId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  db.sessions.push({ token, userId, createdAt: Date.now() });
+  const cut = Date.now() - SESSION_DAYS * 864e5;
+  db.sessions = db.sessions.filter((s) => s.createdAt > cut);
+  saveDb(db);
+  return token;
+}
+function authUser(req) {
+  const t = req.headers['x-session-token'];
+  if (!t) return null;
+  const s = db.sessions.find((x) => x.token === t);
+  if (!s || Date.now() - s.createdAt > SESSION_DAYS * 864e5) return null;
+  return db.users.find((u) => u.id === s.userId) || null;
+}
+function ensureAdmin(u) {
+  if (ADMIN_EMAIL && u.email === ADMIN_EMAIL && u.role !== 'admin') {
+    u.role = 'admin'; u.suspended = false; saveDb(db);
+  }
+}
+function requireAuth(req, res, next) {
+  const u = authUser(req);
+  if (!u) return res.status(401).json({ ok: false, msg: 'Harus login dulu.' });
+  ensureAdmin(u);
+  if (u.suspended) return res.status(403).json({ ok: false, msg: 'Akun kamu di-suspend. Hubungi admin.' });
+  req.user = u; next();
+}
+function requireAdmin(req, res, next) {
+  requireAuth(req, res, () => {
+    if (req.user.role !== 'admin') return res.status(403).json({ ok: false, msg: 'Khusus admin.' });
+    next();
+  });
+}
+function deviceAbusers(dev, fp) {
+  return db.users.filter((u) => u.role !== 'admin' && (u.deviceId === dev || (fp && u.fp === fp)));
+}
+app.post('/api/auth/register', (req, res) => {
+  const { email, password, deviceId, fp } = req.body || {};
+  const chk = emailCheck(email);
+  if (!chk.ok) return res.status(400).json({ ok: false, msg: chk.msg });
+  const em = chk.email;
+  if (!password || String(password).length < 6)
+    return res.status(400).json({ ok: false, msg: 'Sandi minimal 6 karakter.' });
+  if (db.users.some((u) => u.email === em))
+    return res.status(400).json({ ok: false, msg: 'Email sudah terdaftar. Silakan masuk.' });
+  const dev = String(deviceId || 'dev-' + crypto.randomBytes(8).toString('hex')).slice(0, 64);
+  const fingerprint = String(fp || '').slice(0, 64);
+  let suspended = false;
+  if (deviceAbusers(dev, fingerprint).length >= MAX_PER_DEVICE) {
+    suspended = true;
+    for (const u of deviceAbusers(dev, fingerprint)) u.suspended = true;
+  }
+  const user = {
+    id: nid('user'), email: em, passHash: bcrypt.hashSync(String(password), 10),
+    deviceId: dev, fp: fingerprint,
+    role: (ADMIN_EMAIL && em === ADMIN_EMAIL) ? 'admin' : 'user',
+    suspended, createdAt: Date.now(),
+  };
+  db.users.push(user); saveDb(db);
+  const token = newSession(user.id);
+  res.json({ ok: true, token, user: { email: user.email, role: user.role, suspended: user.suspended } });
+});
+app.post('/api/auth/login', (req, res) => {
+  const { email, password, deviceId, fp } = req.body || {};
+  const em = String(email || '').trim().toLowerCase();
+  const u = db.users.find((x) => x.email === em);
+  if (!u || !bcrypt.compareSync(String(password || ''), u.passHash || ''))
+    return res.status(401).json({ ok: false, msg: 'Email / sandi salah.' });
+  ensureAdmin(u);
+  if (u.suspended) return res.status(403).json({ ok: false, msg: 'Akun kamu di-suspend. Hubungi admin.' });
+  if (deviceId) u.deviceId = String(deviceId).slice(0, 64);
+  if (fp) u.fp = String(fp).slice(0, 64);
+  saveDb(db);
+  const token = newSession(u.id);
+  res.json({ ok: true, token, user: { email: u.email, role: u.role, suspended: u.suspended } });
+});
+app.post('/api/auth/logout', (req, res) => {
+  const t = req.headers['x-session-token'];
+  db.sessions = db.sessions.filter((s) => s.token !== t); saveDb(db);
+  res.json({ ok: true });
+});
+app.get('/api/auth/me', (req, res) => {
+  const u = authUser(req);
+  if (!u) return res.status(401).json({ ok: false });
+  ensureAdmin(u);
+  res.json({ ok: true, user: { email: u.email, role: u.role, suspended: u.suspended } });
+});
+/* Kelola pengguna (admin) */
+app.get('/api/users', requireAdmin, (req, res) => {
+  const counts = {};
+  db.users.forEach((u) => { counts[u.deviceId] = (counts[u.deviceId] || 0) + 1; });
+  res.json({
+    users: db.users.map((u) => ({
+      id: u.id, email: u.email, role: u.role, suspended: u.suspended,
+      deviceAccounts: counts[u.deviceId] || 1, createdAt: u.createdAt,
+      keys: db.gatewayKeys.filter((k) => k.userId === u.id && !k.revoked).length,
+    })),
+  });
+});
+app.post('/api/users/:id/suspend', requireAdmin, (req, res) => {
+  const u = db.users.find((x) => x.id === req.params.id);
+  if (!u || u.role === 'admin') return res.status(400).json({ ok: false, msg: 'Tidak bisa suspend akun ini.' });
+  u.suspended = true; saveDb(db); res.json({ ok: true });
+});
+app.post('/api/users/:id/unsuspend', requireAdmin, (req, res) => {
+  const u = db.users.find((x) => x.id === req.params.id);
+  if (!u) return res.status(404).json({ ok: false });
+  u.suspended = false; saveDb(db); res.json({ ok: true });
+});
+
+/* ---------------- Etalase (daftar model unggulan, tanpa nama provider) ---------------- */
+const ETALASE_DEF = [
+  { tier: 'Text', icon: 'chat', desc: 'Chat, coding, reasoning & analisis', items: [
+    ['openai/gpt-6-astra', 'LikeChat - Odyssey'],
+    ['openai/gpt-6-sol', 'LikeChat - Odyssey'],
+    ['openai/gpt-5.6-sol', 'LikeChat - Odyssey'],
+    ['claude-opus-5.5', 'LikeChat - TNT'],
+    ['claude-opus-5', 'LikeChat - TNT'],
+    ['gpt-6.1-sol', 'LikeChat - TNT'],
+    ['gpt-5.5-xhigh', 'LikeChat - TNT'],
+    ['gpt-5.5', 'LikeChat - TNT'],
+  ]},
+];
+function resolveEtalase() {
+  const byKey = {};
+  db.providers.forEach((p) => p.models.forEach((m) => { byKey[m.id + '|' + p.name] = m; }));
+  return ETALASE_DEF.map((t) => ({
+    tier: t.tier, icon: t.icon, desc: t.desc,
+    items: t.items.map(([id, prov]) => {
+      const m = byKey[id + '|' + prov];
+      return { id, alias: (m && m.alias) || id, context: m ? m.context : 0, active: !!(m && m.active), pingMs: (m && m.pingMs) || 0 };
+    }).filter((x) => x.active),
+  }));
+}
+app.get('/api/public/etalase', (req, res) => res.json({ tiers: resolveEtalase() }));
+app.get('/api/public/models', (req, res) => {
+  const rows = [];
+  db.providers.forEach((p) => p.models.forEach((m) => {
+    if (m.active) rows.push({ id: m.id, alias: m.alias || m.id });
+  }));
+  res.json({ models: rows });
+});
 function apiBase(baseUrl) {
   let u = String(baseUrl || '').trim().replace(/\/+$/, '');
   if (!/\/v1$/.test(u)) u += '/v1';
@@ -207,6 +372,10 @@ function authGatewayKey(req) {
 }
 function keyUsable(key) {
   if (!key || key.revoked) return { ok: false, code: 401, msg: 'API key tidak valid / sudah dicabut.' };
+  if (key.userId) {
+    const owner = db.users.find((u) => u.id === key.userId);
+    if (owner && owner.suspended) return { ok: false, code: 403, msg: 'Akun pemilik key di-suspend.' };
+  }
   if (key.expiresAt && Date.now() > key.expiresAt)
     return { ok: false, code: 402, msg: 'Masa aktif key habis. Perpanjang paket dulu ya.' };
   if (key.tokenLimit > 0 && key.tokensUsed >= key.tokenLimit)
@@ -222,7 +391,7 @@ function logUsage(entry) {
 /* ================= DASHBOARD API ================= */
 app.get('/api/health', (req, res) => res.json({ ok: true, ts: Date.now() }));
 
-app.get('/api/stats', (req, res) => {
+app.get('/api/stats', requireAdmin, (req, res) => {
   const totalTokens = db.usage.reduce((a, u) => a + (u.totalTokens || 0), 0);
   const totalRequests = db.usage.length;
   const activeModels = db.providers.reduce((a, p) => a + p.models.filter((m) => m.active).length, 0);
@@ -232,11 +401,14 @@ app.get('/api/stats', (req, res) => {
   res.json({ totalTokens, totalRequests, activeModels, avgPing, activeKeys, providers: db.providers.length });
 });
 
-app.get('/api/plans', (req, res) => res.json({ plans: PLANS, customRatePer1K: CUSTOM_RATE_PER_1K, sultanPools: { mahal: SULTAN_MAHAL, mid: SULTAN_MID } }));
+app.get('/api/plans', (req, res) => res.json({
+  plans: PLANS, customRatePer1K: CUSTOM_RATE_PER_1K,
+  sultanPools: { mahal: SULTAN_MAHAL.map(([id]) => id), mid: SULTAN_MID.map(([id]) => id) },
+}));
 
 /* ================= PROVIDER (BYOK) ================= */
 // 1) Validasi dulu: Base URL + API key user -> daftar model yang support
-app.post('/api/providers/validate', async (req, res) => {
+app.post('/api/providers/validate', requireAdmin, async (req, res) => {
   try {
     const { baseUrl, apiKey } = req.body || {};
     if (!baseUrl || !apiKey) return res.status(400).json({ ok: false, msg: 'Base URL dan API key wajib diisi.' });
@@ -248,7 +420,7 @@ app.post('/api/providers/validate', async (req, res) => {
 });
 
 // 2) Simpan provider (dijalankan setelah validasi sukses)
-app.post('/api/providers', async (req, res) => {
+app.post('/api/providers', requireAdmin, async (req, res) => {
   try {
     const { name, baseUrl, apiKey, models } = req.body || {};
     if (!name || !baseUrl || !apiKey) return res.status(400).json({ ok: false, msg: 'Nama, Base URL, API key wajib diisi.' });
@@ -270,7 +442,7 @@ app.post('/api/providers', async (req, res) => {
   }
 });
 
-app.get('/api/providers', (req, res) => {
+app.get('/api/providers', requireAdmin, (req, res) => {
   res.json({
     providers: db.providers.map((p) => ({
       ...p, apiKey: maskKey(p.apiKey),
@@ -279,7 +451,7 @@ app.get('/api/providers', (req, res) => {
   });
 });
 
-app.patch('/api/providers/:id/models', (req, res) => {
+app.patch('/api/providers/:id/models', requireAdmin, (req, res) => {
   const p = db.providers.find((x) => x.id === req.params.id);
   if (!p) return res.status(404).json({ ok: false, msg: 'Provider tidak ditemukan.' });
   const { modelId, active, alias } = req.body || {};
@@ -297,7 +469,7 @@ app.patch('/api/providers/:id/models', (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/providers/:id/ping', async (req, res) => {
+app.post('/api/providers/:id/ping', requireAdmin, async (req, res) => {
   const p = db.providers.find((x) => x.id === req.params.id);
   if (!p) return res.status(404).json({ ok: false, msg: 'Provider tidak ditemukan.' });
   try {
@@ -317,7 +489,7 @@ app.post('/api/providers/:id/ping', async (req, res) => {
   }
 });
 
-app.delete('/api/providers/:id', (req, res) => {
+app.delete('/api/providers/:id', requireAdmin, (req, res) => {
   const i = db.providers.findIndex((x) => x.id === req.params.id);
   if (i < 0) return res.status(404).json({ ok: false, msg: 'Provider tidak ditemukan.' });
   db.providers.splice(i, 1);
@@ -326,12 +498,18 @@ app.delete('/api/providers/:id', (req, res) => {
 });
 
 /* ================= GATEWAY KEY (hestia-xxxx) ================= */
-app.post('/api/keys', (req, res) => {
-  const { name, providerId, planId, modelIds, keyType } = req.body || {};
+app.post('/api/keys', requireAdmin, (req, res) => {
+  const { name, providerId, planId, modelIds, keyType, userEmail } = req.body || {};
   const plan = getPlan(planId);
   const provider = db.providers.find((p) => p.id === providerId);
   if (!provider) return res.status(400).json({ ok: false, msg: 'Pilih provider dulu.' });
   if (!plan) return res.status(400).json({ ok: false, msg: 'Pilih paket dulu.' });
+  let userId = null;
+  if (userEmail) {
+    const u = db.users.find((x) => x.email === String(userEmail).trim().toLowerCase());
+    if (!u) return res.status(400).json({ ok: false, msg: 'Email pembeli tidak terdaftar.' });
+    userId = u.id;
+  }
   // Jenis key: 'hestia' (provider resmi Hestia) vs 'byok' (provider titipan user)
   const type = keyType === 'hestia' || keyType === 'byok'
     ? keyType
@@ -353,7 +531,7 @@ app.post('/api/keys', (req, res) => {
   const key = 'hestia-' + crypto.randomBytes(18).toString('base64url');
   const gk = {
     id: nid('key'), name: String(name || 'Key Tanpa Nama').slice(0, 60),
-    key, providerId: provider.id, planId: plan.id, keyType: type,
+    key, providerId: provider.id, planId: plan.id, keyType: type, userId,
     modelIds: chosen, tokenLimit: plan.tokens, tokensUsed: 0,
     requests: 0, revoked: false,
     createdAt: Date.now(), expiresAt: Date.now() + plan.durationDays * 86400000,
@@ -368,9 +546,10 @@ app.post('/api/keys', (req, res) => {
   });
 });
 
-app.get('/api/keys', (req, res) => {
+app.get('/api/keys', requireAuth, (req, res) => {
+  const list = req.user.role === 'admin' ? db.gatewayKeys : db.gatewayKeys.filter((k) => k.userId === req.user.id);
   res.json({
-    keys: db.gatewayKeys.map((k) => {
+    keys: list.map((k) => {
       const plan = getPlan(k.planId) || {};
       const provider = db.providers.find((p) => p.id === k.providerId);
       return {
@@ -387,13 +566,15 @@ app.get('/api/keys', (req, res) => {
   });
 });
 
-app.get('/api/keys/:id/reveal', (req, res) => {
+app.get('/api/keys/:id/reveal', requireAuth, (req, res) => {
   const k = db.gatewayKeys.find((x) => x.id === req.params.id);
   if (!k) return res.status(404).json({ ok: false });
+  if (req.user.role !== 'admin' && k.userId !== req.user.id)
+    return res.status(403).json({ ok: false, msg: 'Bukan key kamu.' });
   res.json({ ok: true, key: k.key, baseUrl: publicBaseUrl(req) + '/v1' });
 });
 
-app.delete('/api/keys/:id', (req, res) => {
+app.delete('/api/keys/:id', requireAdmin, (req, res) => {
   const k = db.gatewayKeys.find((x) => x.id === req.params.id);
   if (!k) return res.status(404).json({ ok: false, msg: 'Key tidak ditemukan.' });
   k.revoked = true;
@@ -402,14 +583,18 @@ app.delete('/api/keys/:id', (req, res) => {
 });
 
 /* ================= RIWAYAT & MODEL ================= */
-app.get('/api/usage', (req, res) => {
+app.get('/api/usage', requireAuth, (req, res) => {
   const { keyId, limit } = req.query;
   let list = db.usage;
+  if (req.user.role !== 'admin') {
+    const mine = new Set(db.gatewayKeys.filter((k) => k.userId === req.user.id).map((k) => k.id));
+    list = list.filter((u) => mine.has(u.keyId));
+  }
   if (keyId) list = list.filter((u) => u.keyId === keyId);
   res.json({ usage: list.slice(0, Math.min(parseInt(limit) || 100, 500)) });
 });
 
-app.get('/api/models', (req, res) => {
+app.get('/api/models', requireAdmin, (req, res) => {
   const rows = [];
   db.providers.forEach((p) => {
     p.models.forEach((m) => {
@@ -426,7 +611,7 @@ app.get('/api/models', (req, res) => {
 });
 
 /* ================= ORDER TOKEN ================= */
-app.post('/api/orders', (req, res) => {
+app.post('/api/orders', requireAuth, (req, res) => {
   const { planId, customTokens, name, models } = req.body || {};
   let tokens, price, label;
   if (planId) {
@@ -448,6 +633,7 @@ app.post('/api/orders', (req, res) => {
   const order = {
     id: 'HG-' + Date.now().toString(36).toUpperCase(),
     label, tokens, price, buyer: String(name || 'Tanpa Nama').slice(0, 60),
+    userId: req.user.id, buyerEmail: req.user.email,
     status: 'pending', createdAt: Date.now(),
   };
   db.orders.unshift(order);
@@ -457,8 +643,11 @@ app.post('/api/orders', (req, res) => {
     payInfo: 'Transfer Rp' + price.toLocaleString('id-ID') + ' lalu konfirmasi ke admin. Token aktif otomatis setelah pembayaran diverifikasi.',
   });
 });
-app.get('/api/orders', (req, res) => res.json({ orders: db.orders.slice(0, 100) }));
-app.delete('/api/orders/:id', (req, res) => {
+app.get('/api/orders', requireAuth, (req, res) => {
+  const list = req.user.role === 'admin' ? db.orders : db.orders.filter((o) => o.userId === req.user.id);
+  res.json({ orders: list.slice(0, 100) });
+});
+app.delete('/api/orders/:id', requireAdmin, (req, res) => {
   const i = db.orders.findIndex((o) => o.id === req.params.id);
   if (i < 0) return res.status(404).json({ ok: false, msg: 'Order tidak ditemukan.' });
   db.orders.splice(i, 1); saveDb(db);
