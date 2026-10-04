@@ -96,15 +96,37 @@ const PLANS = [
     desc: '3M token • 14 hari • 20 model' },
   { id: 'vip-8m', name: 'VIP', tokens: 8000000, price: 50000, durationDays: 30, maxModels: 9999, freeModels: 0,
     desc: '8M token • 30 hari • FULL model' },
-  { id: 'sultan-astra', name: 'SULTAN ASTRA', tokens: 1500000, price: 350000, durationDays: 30, maxModels: 1, sultan: true,
-    desc: '1,5M token • 30 hari • GPT-6 Astra (model otomatis masuk key)' },
-  { id: 'sultan-sol', name: 'SULTAN SOL', tokens: 1000000, price: 150000, durationDays: 30, maxModels: 1, sultan: true,
-    desc: '1M token • 30 hari • GPT-6 Sol / GPT-5.6 Sol (pilih 1)' },
-  { id: 'sultan-tnt', name: 'SULTAN TNT', tokens: 1000000, price: 150000, durationDays: 30, maxModels: 1, sultan: true,
-    desc: '1M token • 30 hari • Opus 5.5 / Opus 5 / GPT-6.1 Sol / GPT-5.5 XHigh / GPT-5.5 (pilih 1)' },
+  { id: 'sultan', name: 'SULTAN', tokens: 1500000, price: 350000, durationDays: 30, maxModels: 8, sultan: true, pick: 0,
+    desc: '1,5M token • 30 hari • semua 8 model mahal terbuka otomatis' },
+  { id: 'sultan-plus', name: 'SULTAN+', tokens: 1000000, price: 150000, durationDays: 30, maxModels: 3, sultan: true, pick: 3, pool: 'mahal',
+    desc: '1M token • 30 hari • pilih 3 dari 8 model mahal' },
+  { id: 'sultan-plus2', name: 'SULTAN++', tokens: 1000000, price: 100000, durationDays: 30, maxModels: 5, sultan: true, pick: 5, pool: 'mid',
+    desc: '1M token • 30 hari • pilih 5 model menengah' },
 ];
 const CUSTOM_RATE_PER_1K = 10; // Rp10 per 1000 token (ikut harga 5k/500k)
 const getPlan = (id) => PLANS.find((p) => p.id === id);
+
+/* ---------------- Pool model Sultan ---------------- */
+const SULTAN_MAHAL = [
+  ['openai/gpt-6-astra', 'LikeChat - Odyssey'],
+  ['openai/gpt-6-sol', 'LikeChat - Odyssey'],
+  ['openai/gpt-5.6-sol', 'LikeChat - Odyssey'],
+  ['claude-opus-5.5', 'LikeChat - TNT'],
+  ['claude-opus-5', 'LikeChat - TNT'],
+  ['gpt-6.1-sol', 'LikeChat - TNT'],
+  ['gpt-5.5-xhigh', 'LikeChat - TNT'],
+  ['gpt-5.5', 'LikeChat - TNT'],
+];
+const SULTAN_MID = [
+  ['claude-sonnet-4-6', 'LikeChat - VYCE (chat)'],
+  ['DeepSeek-V4-Pro', 'LikeChat - hcnsec (chat)'],
+  ['DeepSeek-V4.1-Flash', 'LikeChat - hcnsec (chat)'],
+  ['glm-5.3', 'LikeChat - hcnsec (chat)'],
+  ['kimi-k3', 'LikeChat - hcnsec (chat)'],
+  ['openai/gpt-oss-120b', 'LikeChat - HyperFusion (file/gambar)'],
+  ['deepseek-ai/DeepSeek-V4-Flash-0731', 'LikeChat - HyperFusion (file/gambar)'],
+  ['grok-imagine-2', 'LikeChat - VYCE (chat)'],
+];
 
 /* ---------------- Helper ---------------- */
 function apiBase(baseUrl) {
@@ -208,7 +230,7 @@ app.get('/api/stats', (req, res) => {
   res.json({ totalTokens, totalRequests, activeModels, avgPing, activeKeys, providers: db.providers.length });
 });
 
-app.get('/api/plans', (req, res) => res.json({ plans: PLANS, customRatePer1K: CUSTOM_RATE_PER_1K }));
+app.get('/api/plans', (req, res) => res.json({ plans: PLANS, customRatePer1K: CUSTOM_RATE_PER_1K, sultanPools: { mahal: SULTAN_MAHAL, mid: SULTAN_MID } }));
 
 /* ================= PROVIDER (BYOK) ================= */
 // 1) Validasi dulu: Base URL + API key user -> daftar model yang support
@@ -401,12 +423,17 @@ app.get('/api/models', (req, res) => {
 
 /* ================= ORDER TOKEN ================= */
 app.post('/api/orders', (req, res) => {
-  const { planId, customTokens, name } = req.body || {};
+  const { planId, customTokens, name, models } = req.body || {};
   let tokens, price, label;
   if (planId) {
     const plan = getPlan(planId);
     if (!plan) return res.status(400).json({ ok: false, msg: 'Paket tidak valid.' });
     tokens = plan.tokens; price = plan.price; label = plan.name + ' • ' + plan.desc;
+    if (plan.sultan && plan.pick > 0) {
+      const picked = Array.isArray(models) ? models.map(String).slice(0, plan.pick) : [];
+      if (picked.length !== plan.pick) return res.status(400).json({ ok: false, msg: 'Pilih ' + plan.pick + ' model.' });
+      label += ' • [' + picked.join(', ') + ']';
+    }
   } else if (customTokens) {
     tokens = Math.max(1000, Math.min(100000000, parseInt(customTokens) || 0));
     price = Math.ceil(tokens / 1000) * CUSTOM_RATE_PER_1K;
