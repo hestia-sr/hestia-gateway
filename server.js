@@ -54,6 +54,12 @@ function loadDb() {
         dirty = true;
       }
     }
+    // Migrasi: alias nama tampil untuk model lama
+    for (const p of d.providers || []) {
+      const before = JSON.stringify((p.models || []).map((m) => m.alias));
+      assignAliases(p.models);
+      if (JSON.stringify((p.models || []).map((m) => m.alias)) !== before) dirty = true;
+    }
     if (dirty) fs.writeFileSync(DB_FILE, JSON.stringify(d, null, 2));
     return d;
   } catch (e) {
@@ -63,6 +69,15 @@ function loadDb() {
 }
 function saveDb(db) {
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+}
+/* Alias nama tampil model: default = id tanpa akhiran ":free", unik per provider */
+function assignAliases(models) {
+  const seen = new Set();
+  for (const m of models || []) {
+    if (!m.alias) m.alias = String(m.id).replace(/:free$/, '');
+    if (seen.has(m.alias)) m.alias = m.id;
+    seen.add(m.alias);
+  }
 }
 let db = loadDb();
 const nid = (p) => p + '_' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex');
@@ -138,6 +153,7 @@ async function validateProvider(baseUrl, apiKey) {
     active: true,
     pingMs: latencyMs,
   }));
+  assignAliases(models);
   if (!models.length) throw new Error('Provider tidak mengembalikan daftar model.');
   return { base, models, latencyMs };
 }
@@ -230,10 +246,17 @@ app.get('/api/providers', (req, res) => {
 app.patch('/api/providers/:id/models', (req, res) => {
   const p = db.providers.find((x) => x.id === req.params.id);
   if (!p) return res.status(404).json({ ok: false, msg: 'Provider tidak ditemukan.' });
-  const { modelId, active } = req.body || {};
+  const { modelId, active, alias } = req.body || {};
   const m = p.models.find((x) => x.id === modelId);
   if (!m) return res.status(404).json({ ok: false, msg: 'Model tidak ditemukan.' });
-  m.active = !!active;
+  if (alias !== undefined) {
+    const a = String(alias).trim();
+    if (!a) return res.status(400).json({ ok: false, msg: 'Nama alias tidak boleh kosong.' });
+    if (p.models.some((x) => x !== m && (x.alias || x.id) === a))
+      return res.status(400).json({ ok: false, msg: 'Nama "' + a + '" sudah dipakai model lain.' });
+    m.alias = a;
+  }
+  if (active !== undefined) m.active = !!active;
   saveDb(db);
   res.json({ ok: true });
 });
@@ -355,7 +378,7 @@ app.get('/api/models', (req, res) => {
       const u = db.usage.filter((x) => x.model === m.id);
       const avgPerReq = u.length ? Math.round(u.reduce((a, x) => a + (x.totalTokens || 0), 0) / u.length) : 0;
       rows.push({
-        providerId: p.id, providerName: p.name, id: m.id,
+        providerId: p.id, providerName: p.name, id: m.id, alias: m.alias || m.id,
         active: m.active, free: m.free, context: m.context,
         pingMs: m.pingMs || p.pingMs || 0, avgPerReq, requests: u.length,
       });
@@ -407,7 +430,11 @@ app.get('/v1/models', (req, res) => {
   const ids = gk.modelIds.filter((id) => provider && provider.models.some((m) => m.id === id && m.active));
   res.json({
     object: 'list',
-    data: ids.map((id) => ({ id, object: 'model', created: Math.floor(Date.now() / 1000), owned_by: 'hestia-gateway' })),
+    // Pembeli hanya melihat ALIAS (nama tampil); id asli disembunyikan
+    data: ids.map((id) => {
+      const m = provider.models.find((x) => x.id === id);
+      return { id: (m && m.alias) || id, object: 'model', created: Math.floor(Date.now() / 1000), owned_by: 'hestia-gateway' };
+    }),
   });
 });
 
@@ -419,12 +446,12 @@ app.post('/v1/chat/completions', async (req, res) => {
 
   const { model, messages, stream } = req.body || {};
   if (!model || !messages) return res.status(400).json({ error: { message: 'model & messages wajib diisi.' } });
-  if (!gk.modelIds.includes(model))
-    return res.status(403).json({ error: { message: 'Model "' + model + '" tidak termasuk dalam key ini.' } });
   const provider = db.providers.find((p) => p.id === gk.providerId);
-  const pModel = provider && provider.models.find((m) => m.id === model && m.active);
-  if (!provider || !pModel)
-    return res.status(503).json({ error: { message: 'Provider/model sedang nonaktif.' } });
+  // Terima alias ATAU id asli, lalu petakan ke id asli untuk diteruskan ke provider
+  const pModel = provider && provider.models.find((m) => (m.id === model || m.alias === model) && m.active);
+  if (!pModel || !gk.modelIds.includes(pModel.id))
+    return res.status(403).json({ error: { message: 'Model "' + model + '" tidak termasuk dalam key ini.' } });
+  const realModel = pModel.id;
 
   const promptText = (messages || []).map((m) => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content || ''))).join('\n');
   const promptTokens = estimateTokens(promptText);
@@ -434,7 +461,7 @@ app.post('/v1/chat/completions', async (req, res) => {
     upstream = await fetchWithTimeout(provider.baseUrl + '/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + provider.apiKey },
-      body: JSON.stringify(req.body),
+      body: JSON.stringify({ ...req.body, model: realModel }),
     }, 120000);
   } catch (e) {
     logUsage({ keyId: gk.id, keyName: gk.name, providerId: provider.id, model, promptTokens, completionTokens: 0, totalTokens: 0, ok: false, latencyMs: Date.now() - started, err: 'upstream unreachable' });
