@@ -454,8 +454,8 @@ async function loadEtalase() {
       const m = byKey[id + '|' + prov];
       const live = !!(m && m.active);
       return `<div class="link-card">
-        <b class="mono">${esc(id)}</b>
-        <small>${esc(prov)}${m ? ' • ' + fmtN(m.context) + ' konteks' : ''}</small>
+        <b class="mono">${esc(m && m.alias ? m.alias : id)}</b>
+        <small>Hestia${m ? ' • ' + fmtN(m.context) + ' konteks' : ''}</small>
         <span class="row gap" style="margin-top:8px">
           <span class="badge ${live ? 'ok' : 'off'}">${live ? 'READY' : 'OFF'}</span>
           ${m && m.pingMs ? `<small class="muted">${m.pingMs} ms</small>` : ''}
