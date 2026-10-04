@@ -10,6 +10,7 @@ const NAV_ALL = [
   { id: 'usage', label: 'Riwayat', ic: 'history', roles: ['admin'] },
   { id: 'pricing', label: 'Harga', ic: 'diamond', roles: ['guest', 'user', 'admin'] },
   { id: 'etalase', label: 'Etalase', ic: 'bag', roles: ['guest', 'user', 'admin'] },
+  { id: 'catalog', label: 'Model AI', ic: 'bot', roles: ['guest', 'user', 'admin'] },
   { id: 'links', label: 'Tautan', ic: 'link', roles: ['admin'] },
   { id: 'mykeys', label: 'Key Saya', ic: 'key', roles: ['user'] },
   { id: 'users', label: 'Pengguna', ic: 'users', roles: ['admin'] },
@@ -121,7 +122,7 @@ function buildNav() {
     bs.onclick = () => { ME ? doLogout() : go('auth'); };
   }
 }
-const PUBLIC_PAGES = ['etalase', 'pricing', 'auth'];
+const PUBLIC_PAGES = ['etalase', 'pricing', 'auth', 'catalog'];
 function go(id) {
   const role = myRole();
   const navIds = NAV_ALL.filter((n) => n.roles.includes(role)).map((n) => n.id);
@@ -132,7 +133,7 @@ function go(id) {
   $('#page-' + id).classList.remove('hidden');
   $$('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === id));
   window.scrollTo({ top: 0 });
-  ({ dashboard: loadDashboard, provider: loadProviders, keys: loadKeyForm, models: loadModels, usage: loadUsage, pricing: loadPricing, etalase: loadEtalase, auth: () => {}, mykeys: loadMyKeys, users: loadUsers }[id] || (() => {}))();
+  ({ dashboard: loadDashboard, provider: loadProviders, keys: loadKeyForm, models: loadModels, usage: loadUsage, pricing: loadPricing, etalase: loadEtalase, catalog: loadCatalog, auth: () => {}, mykeys: loadMyKeys, users: loadUsers }[id] || (() => {}))();
 }
 
 /* ---------- dashboard ---------- */
@@ -596,6 +597,24 @@ async function loadEtalase() {
         <button class="btn primary sm" style="margin-top:10px;width:100%" data-nav="pricing">Beli Paket</button>
       </div>`).join('')}</div></div>`).join('');
   document.querySelectorAll('#etalaseTiers [data-nav]').forEach((b) => b.addEventListener('click', () => go(b.dataset.nav)));
+}
+
+/* ---------- katalog Model AI ---------- */
+async function loadCatalog() {
+  const { packages } = await api('/api/public/catalog');
+  document.getElementById('catalogList').innerHTML = packages.map((p) => {
+    const nActive = p.models.filter((m) => m.active).length;
+    return `<div class="card"><div class="card-head"><h3>${esc(p.name)}</h3><span class="muted">${p.price ? fmtRp(p.price) : 'Gratis'} &bull; ${nActive} dari ${p.models.length} aktif</span></div>
+    <p class="muted" style="margin:0 0 10px">${esc(p.note)}</p>
+    <div class="link-grid">${p.models.map((m) => `
+      <div class="link-card">
+        <b class="mono${m.active ? '' : ' struck'}">${esc(m.alias || m.id)}</b>
+        <span class="row gap" style="margin-top:8px">
+          <span class="badge ${m.active ? 'ok' : 'off'}">${m.active ? 'AKTIF' : 'BELUM AKTIF'}</span>
+          ${m.bonus ? '<span class="badge info">BONUS</span>' : ''}
+        </span>
+      </div>`).join('')}</div></div>`;
+  }).join('');
 }
 
 /* ---------- provider links ---------- */
