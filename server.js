@@ -42,8 +42,12 @@ function loadDb() {
     // Migrasi: tandai provider resmi Hestia & jenis key lama
     let dirty = false;
     for (const p of d.providers || []) {
+      const own = p.name.indexOf('LikeChat - ') === 0; // provider milik Hestia sendiri
       if (p.official === undefined) {
-        p.official = p.name.indexOf('LikeChat - ') === 0;
+        p.official = own;
+        dirty = true;
+      } else if (own && !p.official) {
+        p.official = true; // restorasi: provider Hestia yang masuk via API publik
         dirty = true;
       }
     }
