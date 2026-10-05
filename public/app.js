@@ -735,8 +735,15 @@ async function loadMyKeys() {
       <div class="kv"><span>Key</span><b class="mono">${esc(k.masked)}</b></div>
       <div class="row gap" style="margin-top:10px">
         <button class="btn ghost sm" onclick="revealMyKey('${k.id}')">Lihat &amp; Salin</button>
+        <button class="btn ghost sm" onclick="deleteMyKey('${k.id}')" title="Hapus permanen dari daftar">${ic('trash')}</button>
       </div>
     </div>`).join('') || '<p class="muted">Belum ada key. Beli paket dulu di halaman Harga ya.</p>';
+}
+async function deleteMyKey(id) {
+  if (!confirm('Hapus key ini permanen dari daftar? Token sisa ikut hangus.')) return;
+  const r = await api('/api/my-keys/' + id, { method: 'DELETE' });
+  if (r.ok) { toast('Key dihapus'); loadMyKeys(); }
+  else toast(r.msg || 'Gagal menghapus');
 }
 async function revealMyKey(id) {
   const r = await api('/api/keys/' + id + '/reveal');
