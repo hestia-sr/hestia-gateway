@@ -427,8 +427,54 @@ function guessContext(modelId) {
    Model yang TIDAK ada di tabel ini dan belum diverifikasi manual TIDAK menampilkan
    chip konteks di halaman publik — dilarang menebak (biar tidak dikira nipu). */
 const VERIFIED_CONTEXT = {
+  'MiniMax-M3': 1000000, 'minimax-m3': 1000000, 'minimax/minimax-m3': 1000000,
+  'minimax/minimax-m2': 204800, 'minimax/minimax-m2.1': 204800,
+  'minimax/minimax-m2.1-highspeed': 204800, 'minimax/minimax-m2.5': 204800,
+  'minimax/minimax-m2.5-highspeed': 204800, 'minimax/minimax-m2.7': 204800,
+  'minimax/minimax-m2.7-highspeed': 204800,
+  'DeepSeek-V4-Flash': 1000000, 'DeepSeek-V4-Pro': 1000000,
+  'DeepSeek-V4.1-Flash': 1000000, 'deepseek-ai/DeepSeek-V4-Flash-0731': 1000000,
+  'deepseek-v4-flash': 1000000,
+  'cohere/aya-expanse-32b': 128000, 'cohere/aya-vision-32b': 16000,
+  'cohere/command-a': 256000, 'cohere/command-a-plus': 128000,
+  'cohere/command-a-reasoning': 256000, 'cohere/command-a-translate': 8000,
+  'cohere/command-a-vision': 128000, 'cohere/command-r-08-2024': 128000,
+  'cohere/command-r-plus-08-2024': 128000, 'cohere/command-r7b-12-2024': 128000,
+  'cohere/north-mini-code': 256000, 'cohere/north-small-translate': 16000,
+  'cohere/tiny-aya-earth': 8000, 'cohere/tiny-aya-fire': 8000,
+  'cohere/tiny-aya-global': 8000, 'cohere/tiny-aya-water': 8000,
+  'mistralai/codestral-2508': 128000, 'mistralai/devstral-medium': 128000,
+  'mistralai/ministral-14b': 256000, 'mistralai/ministral-3b': 256000,
+  'mistralai/ministral-8b': 256000, 'mistralai/mistral-large-2512': 256000,
+  'mistralai/mistral-medium-3.5': 256000, 'mistralai/mistral-small-2603': 256000,
+  'claude-opus-5': 1000000, 'claude-opus-5.5': 1000000,
+  'claude-sonnet-4-6': 1000000, 'claude-opus-4-6': 1000000,
+  'claude-opus-4-7': 1000000, 'claude-opus-4-8': 1000000,
+  'gemini-3.8-flash': 1000000, 'grok-4.6': 500000,
+  'kimi-k3': 1048576, 'MiMo-V2.6-Flash': 1000000,
+  'glm-5.3': 1000000, 'glm-5.3-flash': 1000000,
+  'nvidia/nemotron-3-nano-omni': 262144, 'nvidia/nemotron-3-super': 1000000,
+  'nvidia/nemotron-3-ultra': 1000000, 'openai/gpt-oss-120b': 128000,
+  'liquid/lfm-2.5-2.6b': 128000, 'inclusionai/ling-3.0-flash-sante': 262144,
+  'agnes-3.0-flash': 524288,
+  'meituan/longcat-2.0': 1000000, 'meituan/longcat-2.5-preview': 1000000,
+  'qwen/qwen-plus-2025-07-28': 1000000, 'qwen/qwen3-coder-plus': 1000000,
+  'qwen/qwen3-max': 262144, 'qwen/qwen3-vl-plus': 262144,
+  'qwen/qwen3.5-397b-a17b': 262144, 'qwen/qwen3.5-flash': 1000000,
+  'qwen/qwen3.5-omni-flash': 262144, 'qwen/qwen3.5-omni-plus': 262144,
+  'qwen/qwen3.5-plus': 1000000, 'qwen/qwen3.6-27b': 262144,
+  'qwen/qwen3.6-35b-a3b': 262144, 'qwen/qwen3.6-max-preview': 262144,
+  'qwen/qwen3.6-plus': 1000000, 'qwen/qwen3.7-flash': 1000000,
+  'qwen/qwen3.7-max': 1000000, 'qwen/qwen3.7-plus': 1000000,
+  'qwen/qwen3.8-max': 1000000, 'qwen3.8-max': 1000000,
+  'qwen/qwen3.8-omni-flash': 1000000,
+  'Qwen3.8-27B': 262144, 'Qwen3.8-Flash-Next': 262144,
+  'qwen3.8-flash': 1000000,
 };
-const verifiedContext = (id) => VERIFIED_CONTEXT[id] || 0;
+const verifiedContext = (id) => {
+  const key = String(id || '').replace(/:free$/, '');
+  return VERIFIED_CONTEXT[key] || VERIFIED_CONTEXT[id] || 0;
+};
 // Nilai konteks yang boleh tampil publik: verifikasi manual (prioritas) lalu tabel riset.
 const displayContext = (m) => {
   if (!m) return 0;
