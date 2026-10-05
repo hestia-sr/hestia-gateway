@@ -653,6 +653,31 @@ app.post('/api/providers/:id/ping', requireAdmin, async (req, res) => {
   }
 });
 
+/* Ping otomatis berkala: ukur ulang latensi tiap provider agar angka ping di halaman
+   publik selalu segar dan berubah-ubah mengikuti kondisi nyata (bukan angka mati).
+   Diukur per provider (wajar: semua model satu provider memang satu server).
+   Gagal ping = nilai lama dipertahankan, tidak di-nol-kan. */
+const PING_INTERVAL_MS = 15 * 60 * 1000;
+async function autoPingProviders() {
+  for (const p of db.providers) {
+    try {
+      const started = Date.now();
+      const r = await fetchWithTimeout(p.baseUrl + '/models', {
+        headers: { Authorization: 'Bearer ' + p.apiKey },
+      }, 15000);
+      if (!r.ok) continue;
+      await r.text().catch(() => '');
+      const ms = Date.now() - started;
+      p.pingMs = ms;
+      p.models.forEach((m) => (m.pingMs = ms));
+      p.lastPingAt = Date.now();
+    } catch { /* gagal: pertahankan nilai lama */ }
+  }
+  saveDb(db);
+}
+setInterval(autoPingProviders, PING_INTERVAL_MS);
+setTimeout(autoPingProviders, 60 * 1000); // ukur pertama 60 dtk setelah server nyala
+
 app.delete('/api/providers/:id', requireAdmin, (req, res) => {
   const i = db.providers.findIndex((x) => x.id === req.params.id);
   if (i < 0) return res.status(404).json({ ok: false, msg: 'Provider tidak ditemukan.' });
