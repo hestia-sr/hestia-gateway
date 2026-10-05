@@ -829,6 +829,15 @@ app.delete('/api/keys/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+/* Pengguna hapus key miliknya sendiri (permanen, hilang dari daftar) */
+app.delete('/api/my-keys/:id', requireAuth, (req, res) => {
+  const i = db.gatewayKeys.findIndex((x) => x.id === req.params.id && x.userId === req.user.id);
+  if (i < 0) return res.status(404).json({ ok: false, msg: 'Key tidak ditemukan.' });
+  db.gatewayKeys.splice(i, 1);
+  saveDb(db);
+  res.json({ ok: true });
+});
+
 /* ================= RIWAYAT & MODEL ================= */
 app.get('/api/usage', requireAuth, (req, res) => {
   const { keyId, limit } = req.query;
