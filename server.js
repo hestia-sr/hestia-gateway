@@ -747,6 +747,26 @@ app.post('/api/keys', requireAdmin, (req, res) => {
   res.json({ ok: true, ...r.data });
 });
 
+/* Aktivitas milik sendiri: total request & token per pengguna (tombol Aktivitas di nav) */
+app.get('/api/my-usage', requireAuth, (req, res) => {
+  const myKeyIds = new Set(db.gatewayKeys.filter((k) => k.userId === req.user.id).map((k) => k.id));
+  const rows = db.usage.filter((u) => myKeyIds.has(u.keyId));
+  const sum = (f) => rows.reduce((a, x) => a + (x[f] || 0), 0);
+  const byKey = {};
+  for (const u of rows) {
+    const b = byKey[u.keyId] || (byKey[u.keyId] = { keyId: u.keyId, keyName: u.keyName || 'key', requests: 0, tokens: 0 });
+    b.requests++; b.tokens += u.totalTokens || 0;
+  }
+  res.json({
+    totalReq: rows.length,
+    totalTokens: sum('totalTokens'),
+    promptTokens: sum('promptTokens'),
+    completionTokens: sum('completionTokens'),
+    byKey: Object.values(byKey).sort((a, b) => b.tokens - a.tokens),
+    recent: rows.slice(0, 30).map((u) => ({ ts: u.ts, keyName: u.keyName, model: u.model, totalTokens: u.totalTokens, ok: u.ok })),
+  });
+});
+
 /* Pengguna generate 1 key GRATIS sendiri (maks 1 aktif per user) */
 app.post('/api/my-keys/free', requireAuth, (req, res) => {
   const plan = getPlan('free-500k');
