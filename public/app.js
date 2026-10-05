@@ -13,6 +13,7 @@ const NAV_ALL = [
   { id: 'catalog', label: 'Model AI', ic: 'bot', roles: ['guest', 'user', 'admin'] },
   { id: 'links', label: 'Tautan', ic: 'link', roles: ['admin'] },
   { id: 'mykeys', label: 'Key Saya', ic: 'key', roles: ['user'] },
+  { id: 'activity', label: 'Aktivitas', ic: 'signal', roles: ['user', 'admin'] },
   { id: 'users', label: 'Pengguna', ic: 'users', roles: ['admin'] },
 ];
 const myRole = () => (ME ? ME.role : 'guest');
@@ -133,7 +134,7 @@ function go(id) {
   $('#page-' + id).classList.remove('hidden');
   $$('[data-nav]').forEach((b) => b.classList.toggle('active', b.dataset.nav === id));
   window.scrollTo({ top: 0 });
-  ({ dashboard: loadDashboard, provider: loadProviders, keys: loadKeyForm, models: loadModels, usage: loadUsage, pricing: loadPricing, etalase: loadEtalase, catalog: loadCatalog, auth: () => {}, mykeys: loadMyKeys, users: loadUsers }[id] || (() => {}))();
+  ({ dashboard: loadDashboard, provider: loadProviders, keys: loadKeyForm, models: loadModels, usage: loadUsage, pricing: loadPricing, etalase: loadEtalase, catalog: loadCatalog, auth: () => {}, mykeys: loadMyKeys, users: loadUsers, activity: loadActivity }[id] || (() => {}))();
 }
 
 /* ---------- dashboard ---------- */
@@ -427,6 +428,24 @@ async function loadUsage() {
     || '<tr><td colspan="7" class="muted">Belum ada riwayat.</td></tr>';
 }
 $('#usageFilter').addEventListener('change', loadUsage);
+/* ---------- aktivitas pengguna ---------- */
+async function loadActivity() {
+  const a = await api('/api/my-usage');
+  $('#actCards').innerHTML = [
+    ['Total Request', fmtN(a.totalReq), 'kali request'],
+    ['Total Token', fmtShort(a.totalTokens), 'token terpakai'],
+    ['Token Masuk', fmtShort(a.promptTokens), 'prompt'],
+    ['Token Keluar', fmtShort(a.completionTokens), 'completion'],
+  ].map(([l, v, d]) => `<div class="stat"><div class="v">${v}</div><div class="l"><b style="color:#fff">${l}</b><br>${d}</div></div>`).join('');
+  $('#actByKey').innerHTML = a.byKey.map((k) => `
+    <div class="list-item"><span><b>${esc(k.keyName)}</b><br><small class="muted">${fmtN(k.requests)} request</small></span>
+    <span style="text-align:right"><b class="neon">${fmtShort(k.tokens)}</b><br><small class="muted">token</small></span></div>`).join('')
+    || '<p class="muted">Belum ada pemakaian key.</p>';
+  $('#actRecent').innerHTML = a.recent.map((x) => `
+    <div class="list-item"><span><b>${esc(x.keyName)}</b><br><span class="mono">${esc(x.model)}</span></span>
+    <span style="text-align:right"><b class="neon">${fmtShort(x.totalTokens)}</b><br><small class="muted">${fmtDate(x.ts)}</small></span></div>`).join('')
+    || '<p class="muted">Belum ada aktivitas.</p>';
+}
 $('#btnExportCsv').addEventListener('click', () => {
   const rows = [['waktu', 'key', 'model', 'in', 'out', 'total', 'status'],
     ...(window._usage || []).map((u) => [new Date(u.ts).toISOString(), u.keyName, u.model, u.promptTokens, u.completionTokens, u.totalTokens, u.ok ? 'OK' : 'GAGAL'])];
