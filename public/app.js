@@ -376,11 +376,23 @@ async function loadModels() {
     <td>${esc(m.providerName)}</td>
     <td><input type="checkbox" class="switch" ${m.active ? 'checked' : ''} onchange="toggleModel('${m.providerId}','${esc(m.id)}',this.checked)"></td>
     <td>${m.pingMs ? m.pingMs + ' ms' : '—'}</td>
-    <td>${fmtN(m.context)}</td>
+    <td>${m.contextVerified ? fmtShort(m.context) + ' <span class="badge ok" title="Terverifikasi dari pembuat model">✓</span>' : '<span class="muted">—</span>'}
+      <button class="mini-btn" data-ctx-pid="${m.providerId}" data-ctx-mid="${esc(m.id)}" title="Isi konteks asli (dari pembuat model)">${ic('pencil')}</button></td>
     <td>${m.avgPerReq ? fmtN(m.avgPerReq) : '—'}</td></tr>`).join('')
     || '<tr><td colspan="6" class="muted">Belum ada model. Tambah provider dulu.</td></tr>';
 }
 $('#modelTable tbody').addEventListener('click', async (e) => {
+  const cb = e.target.closest('[data-ctx-pid]');
+  if (cb) {
+    const pid = cb.dataset.ctxPid, mid = cb.dataset.ctxMid;
+    const cur = (lastModels.find((m) => m.providerId === pid && m.id === mid) || {}).context || '';
+    const val = prompt('Konteks ASLI model ini (satuan token, dari pembuat model — mis. 128000). Kosongkan/tekan batal untuk membatalkan:', cur);
+    if (!val || !val.trim()) return;
+    const r = await api('/api/providers/' + pid + '/models', { method: 'PATCH', body: JSON.stringify({ modelId: mid, context: parseInt(val, 10) }) });
+    if (r.ok) { toast('Konteks asli tersimpan'); loadModels(); }
+    else toast(r.msg || 'Gagal menyimpan');
+    return;
+  }
   const b = e.target.closest('[data-rename-pid]');
   if (!b) return;
   const pid = b.dataset.renamePid, mid = b.dataset.renameMid;
