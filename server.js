@@ -324,7 +324,7 @@ function resolveEtalase() {
     tier: t.tier, icon: t.icon, desc: t.desc,
     items: t.items.map(([id, prov]) => {
       const m = byKey[id + '|' + prov];
-      return { id, alias: (m && m.alias) || id, context: m ? m.context : 0, active: !!(m && m.active), pingMs: (m && m.pingMs) || 0 };
+      return { id, alias: (m && m.alias) || id, context: displayContext(m), active: !!(m && m.active), pingMs: (m && m.pingMs) || 0 };
     }).filter((x) => x.active),
   }));
 }
@@ -339,7 +339,7 @@ app.get('/api/public/models', (req, res) => {
 /* Katalog model per paket (PUBLIK, untuk halaman "Model AI") — hanya data non-sensitif:
    id, alias, status aktif live, nama paket, harga. Tanpa nama provider internal / secret. */
 app.get('/api/public/catalog', (req, res) => {
-  const strip = (m) => ({ id: m.id, alias: m.alias || m.id, active: !!m.active, context: m.context || 0, pingMs: m.pingMs || 0 });
+  const strip = (m) => ({ id: m.id, alias: m.alias || m.id, active: !!m.active, context: displayContext(m), pingMs: (m && m.pingMs) || 0 });
   const packages = [];
   // FREE: 10 model paket gratis, status live dari provider hcnsec
   const freeProv = db.providers.find((p) => p.name === FREE_PROVIDER_NAME);
@@ -348,7 +348,7 @@ app.get('/api/public/catalog', (req, res) => {
     note: 'Paket gratis — daftar via web untuk generate key.',
     models: FREE_MODEL_IDS.map((id) => {
       const m = freeProv && freeProv.models.find((x) => x.id === id);
-      return strip({ id, alias: (m && m.alias) || id, active: !!(m && m.active), context: (m && m.context) || 0, pingMs: (m && m.pingMs) || 0 });
+      return strip(m ? m : { id });
     }),
   });
   // BASIC / MEMBER / VIP: replika PERSIS logika auto-assign (provider berurutan, aktif, bukan sultan, maks maxModels)
@@ -423,6 +423,18 @@ function guessContext(modelId) {
   if (/haiku|flash-lite|mini|nano|3\.5/.test(m)) return 32768;
   return 32768;
 }
+/* Context window TERVERIFIKASI dari pembuat model resmi (hasil riset dokumen resmi).
+   Model yang TIDAK ada di tabel ini dan belum diverifikasi manual TIDAK menampilkan
+   chip konteks di halaman publik — dilarang menebak (biar tidak dikira nipu). */
+const VERIFIED_CONTEXT = {
+};
+const verifiedContext = (id) => VERIFIED_CONTEXT[id] || 0;
+// Nilai konteks yang boleh tampil publik: verifikasi manual (prioritas) lalu tabel riset.
+const displayContext = (m) => {
+  if (!m) return 0;
+  if (m.contextVerified && m.context > 0) return m.context;
+  return verifiedContext(m.id);
+};
 function guessFree(modelId) {
   return /free|flash-lite|lite|nano|mini|haiku|turbo/i.test(String(modelId));
 }
@@ -555,9 +567,14 @@ app.get('/api/providers', requireAdmin, (req, res) => {
 app.patch('/api/providers/:id/models', requireAdmin, (req, res) => {
   const p = db.providers.find((x) => x.id === req.params.id);
   if (!p) return res.status(404).json({ ok: false, msg: 'Provider tidak ditemukan.' });
-  const { modelId, active, alias } = req.body || {};
+  const { modelId, active, alias, context } = req.body || {};
   const m = p.models.find((x) => x.id === modelId);
   if (!m) return res.status(404).json({ ok: false, msg: 'Model tidak ditemukan.' });
+  if (context !== undefined) {
+    const c = parseInt(context, 10);
+    if (!Number.isFinite(c) || c < 1000) return res.status(400).json({ ok: false, msg: 'Konteks harus angka ≥ 1000 (satuan token).' });
+    m.context = c; m.contextVerified = true;
+  }
   if (alias !== undefined) {
     const a = String(alias).trim();
     if (!a) return res.status(400).json({ ok: false, msg: 'Nama alias tidak boleh kosong.' });
@@ -741,7 +758,7 @@ app.get('/api/models', requireAdmin, (req, res) => {
       const avgPerReq = u.length ? Math.round(u.reduce((a, x) => a + (x.totalTokens || 0), 0) / u.length) : 0;
       rows.push({
         providerId: p.id, providerName: p.name, id: m.id, alias: m.alias || m.id,
-        active: m.active, free: m.free, context: m.context,
+        active: m.active, free: m.free, context: m.context, contextVerified: !!m.contextVerified,
         pingMs: m.pingMs || p.pingMs || 0, avgPerReq, requests: u.length,
       });
     });
@@ -806,7 +823,7 @@ function poolLive(poolDef) {
   return poolDef.map(([id, provName]) => {
     const p = db.providers.find((x) => x.name === provName);
     const m = p && p.models.find((x) => x.id === id);
-    return { id, alias: (m && m.alias) || id, provider: provName, providerId: p ? p.id : null, active: !!(m && m.active), context: (m && m.context) || 0, pingMs: (m && m.pingMs) || 0 };
+    return { id, alias: (m && m.alias) || id, provider: provName, providerId: p ? p.id : null, active: !!(m && m.active), context: displayContext(m), pingMs: (m && m.pingMs) || 0 };
   });
 }
 app.get('/api/bot/pools', requireBot, (req, res) => {
